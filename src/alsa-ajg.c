@@ -46,8 +46,9 @@ PUBLIC json_object * alsaFindCards (AJG_session *session) {
           // not really clean, but this is how aplay search for ALSA boards
           sprintf(cardName, "hw:%d", card);
 
+          // no more card
           if ((err = snd_ctl_open(&handle, cardName, 0)) < 0) {
-              break;
+             break;
           }
 
           if ((err = snd_ctl_card_info(handle, cardinfo)) < 0) {

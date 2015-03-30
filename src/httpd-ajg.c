@@ -126,23 +126,11 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
   	    if (param && ! sscanf (param, "%d", &select.ctrlid)) goto notAnInteger;
 
   	    sndcardJ = json_object_array_get_idx(alsaFindCards(session), sndcard);
+  	    if (sndcardJ == NULL)  goto invalidRequest;
         jsonResponse = alsaFindControls (session, sndcardJ, &select);
  	    break;
 
-  	default: {
-  	    fprintf (stderr, "%d: alsa-json Unknown API request=%s\n", count ++, request);
-        const char *errorstr = "<html><body>Alsa-Json-Gateway Invalid/Unknown Request</body></html>";
-        response = MHD_create_response_from_buffer (strlen (errorstr),
-                         (void *) errorstr,	 MHD_RESPMEM_PERSISTENT);
-        if (response) {
-            ret = MHD_queue_response (connection, MHD_HTTP_INTERNAL_SERVER_ERROR, response);
-            MHD_destroy_response (response);
-            ret= MHD_YES;
-        } else {
-            ret= MHD_NO;
-        }
-        return ret;
-      }
+  	default: goto invalidRequest;
    }
 
    // return json object to client [note we need to copy serialize object because libmicrohttpd does not provide adequate free callback
@@ -156,9 +144,24 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
   json_object_put (jsonResponse); // decrease reference count to free the json object
   return ret;
 
+invalidRequest: {
+          fprintf (stderr, "%d: alsa-json Unknown/Invalid API/Card request=%s\n", count ++, request);
+          const char *errorstr = "<html><body>Alsa-Json-Gateway Invalid/Unknown Request</body></html>";
+          response = MHD_create_response_from_buffer (strlen (errorstr),
+                           (void *) errorstr,	 MHD_RESPMEM_PERSISTENT);
+          if (response) {
+              ret = MHD_queue_response (connection, MHD_HTTP_INTERNAL_SERVER_ERROR, response);
+              MHD_destroy_response (response);
+              ret= MHD_YES;
+          } else {
+              ret= MHD_NO;
+          }
+          return ret;
+}
+
 notAnInteger:
   fprintf (stderr,"\nERR:httpd requestApi request=%s param=%s (should be integer)\n", request, param);
-  return ERROR;
+  return MHD_NO;
 }
 
 // Create check etag value

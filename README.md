@@ -10,13 +10,18 @@ The gateway also provide basic file service CSS/JS fils that UI may need.
 Online Client Example: http://breizhme.net/alsa-json-gateway
 
 To build [Linux Only]
+
+    #install dependencies: alsa-dev libmicrohttpd-dev json-c-dev
     cd src; make;
 
-To start
+Start server
    ./built/daemon-ajg --help
-   ./built/daemon-ajg --verbose --rootdir=$HOME//Documents/WorkSpace/AlsaJsonMixer/public
+   ./built/daemon-ajg --verbose --rootdir=$HOME//Documents/WorkSpace/AlsaJsonMixer/wwww
 
-To Request
+Request in REST directly from browser
    http://localhost:1234/alsa-json?request=get-controls&sndcard=0
+
+Through AlsaJsonMixer HTML5 UI
+   http://localhost:1234
 
 
