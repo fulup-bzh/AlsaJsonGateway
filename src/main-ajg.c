@@ -1,5 +1,5 @@
 /*
-   alsa-gateway -- provide a REST/HTTP interface to ALSA-Mixer
+   alsajson-gw -- provide a REST/HTTP interface to ALSA-Mixer
 
    Copyright (C) 2015, Fulup Ar Foll
 
@@ -98,10 +98,10 @@ void signalQuit (int signum)
  static void printVersion (void)
  {
 
-   fprintf (stderr,"\nalsa-gateway %3.2f\n", AJQ_VERSION);
+   fprintf (stderr,"\nalsajson-gw %3.2f\n", AJQ_VERSION);
    fprintf (stderr,"------------------ \n\n");
    fprintf(stderr,"Copyright (C) 2015 Fulup Ar Foll (fulup@breizhme.net)\n");
-   fprintf(stderr,"alsa-gateway comes with ABSOLUTELY NO WARRANTY. This is a free software,\n");
+   fprintf(stderr,"alsajson-gw comes with ABSOLUTELY NO WARRANTY. This is a free software,\n");
    fprintf (stderr,"--------------------------------------------------------------- \n");
    
  } // end printVersion
@@ -133,7 +133,7 @@ void signalQuit (int signum)
 
 /*----------------------------------------------------------
  | writePidFile
- |   write a file in /var/run/alsa-gateway with pid
+ |   write a file in /var/run/alsajson-gw with pid
  +--------------------------------------------------------- */
 static int writePidFile (AJG_config *config, int pid) {
   FILE *file;
@@ -155,7 +155,7 @@ static int writePidFile (AJG_config *config, int pid) {
 
 /*----------------------------------------------------------
  | readPidFile
- |   read file in /var/run/alsa-gateway with pid
+ |   read file in /var/run/alsajson-gw with pid
  +--------------------------------------------------------- */
 static int readPidFile (AJG_config *config) {
   int  pid;
@@ -355,7 +355,7 @@ int main(int argc, char *argv[])  {
 
 
   // open syslog if ever needed
-  openlog("alsa-gateway", 0, LOG_DAEMON); 
+  openlog("alsajson-gw", 0, LOG_DAEMON);
 
   // -------------- Try to kill any previsou process if asked ---------------------
   if (session->killPrevious) {
@@ -368,7 +368,7 @@ int main(int argc, char *argv[])  {
       break;
      
     case 0:
-      fprintf (stderr, "%s ERR:main --kill-previous ignored no active alsa-gateway process\n",configTime());
+      fprintf (stderr, "%s ERR:main --kill-previous ignored no active alsajson-gw process\n",configTime());
       break;
       
     default:             
@@ -445,7 +445,7 @@ int main(int argc, char *argv[])  {
       // son process get all data in standalone mode
       if (pid == 0) {
 
- 	 printf ("\nalsa-gateway:background mode (pid:%d console:%s)\n", getpid(),session->config->console);
+ 	 printf ("\nalsajson-gw:background mode (pid:%d console:%s)\n", getpid(),session->config->console);
 
          // redirect default I/O on console
          close (2); dup(consoleFD);  // redirect stderr

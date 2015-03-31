@@ -1,5 +1,5 @@
 /*
-   alsa-gateway -- provide a REST/HTTP interface to ALSA-Mixer
+   alsajson-gw -- provide a REST/HTTP interface to ALSA-Mixer
 
    Copyright (C) 2015, Fulup Ar Foll
 
@@ -22,7 +22,8 @@
 
 // Alsa proto
 PUBLIC json_object* alsaFindCards (AJG_session *session);
-PUBLIC json_object* alsaFindControls(AJG_session *session, json_object* sndcard, AJG_request *request);
+PUBLIC json_object* alsaFindControls(AJG_session *session, json_object *, AJG_request *request);
+PUBLIC json_object *alsaSetControls(AJG_session *session,  int idxcard, AJG_request *request);
 
 
 // Httpd proto

@@ -1,5 +1,5 @@
 /*
-   alsa-gateway -- provide a REST/HTTP interface to ALSA-Mixer
+   alsajson-gw -- provide a REST/HTTP interface to ALSA-Mixer
 
    Copyright (C) 2015, Fulup Ar Foll
 
@@ -21,6 +21,8 @@
    http://alsa-lib.sourcearchive.com/documentation/1.0.20/modules.html
    http://alsa-lib.sourcearchive.com/documentation/1.0.8/group__Control_gd48d44da8e3bfe150e928267008b8ff5.html
    http://alsa.opensrc.org/HowTo_access_a_mixer_control
+   https://github.com/json-c/json-c
+   https://linuxprograms.wordpress.com/2010/05/20/json-c-libjson-tutorial/
 
    $Id: $
 */
@@ -321,7 +323,7 @@ STATIC json_object * getAlsaControl (snd_hctl_elem_t *elem, snd_ctl_elem_info_t 
     snd_hctl_elem_get_id(elem, elemid);
 
     // when ctrlid is set, return only this ctrl
-    if (request->ctrlid != 0 && request->ctrlid != snd_ctl_elem_id_get_numid(elemid)) return NULL;
+    if (request->numid != 0 && request->numid != snd_ctl_elem_id_get_numid(elemid)) return NULL;
 
     // build a json object out of element
     jsonAlsaCtrl = json_object_new_object(); // http://alsa-lib.sourcearchive.com/documentation/1.0.24.1-3/group__Control_ga4e4f251147f558bc2ad044e836e449d9.html
@@ -383,7 +385,7 @@ STATIC json_object * getAlsaControl (snd_hctl_elem_t *elem, snd_ctl_elem_info_t 
     }
 
 
-    if (!request->basicmod) {  // in simple mode do not print usable values
+    if (!request->quiet) {  // in simple mode do not print usable values
         jsonClassCtrl = json_object_new_object();
         json_object_object_add (jsonClassCtrl,"type" , json_object_new_string(snd_ctl_elem_type_name(elemtype)));
 		json_object_object_add (jsonClassCtrl,"count", json_object_new_int(count));
@@ -437,7 +439,7 @@ STATIC json_object * getAlsaControl (snd_hctl_elem_t *elem, snd_ctl_elem_info_t 
 
 PUBLIC json_object *alsaFindControls(AJG_session *session, json_object *sndcard, AJG_request *request) {
 	int err;
-    char const *uid, *tmp;
+    char const *uid,*tmp;
     int  count=0;
 
     snd_ctl_elem_iface_t iface;
@@ -445,22 +447,22 @@ PUBLIC json_object *alsaFindControls(AJG_session *session, json_object *sndcard,
 	snd_hctl_t *handle;
 	snd_hctl_elem_t *elem;
 	snd_ctl_elem_info_t *info;
-	json_object *jsonsndcard, *jsonAlsaCtrls, *jsonAlsaCtrl, *jsonAclCtrl, *slot;;
+	json_object *jsonsndcard, *jsonAlsaCtrls, *jsonAlsaCtrl, *jsonAclCtrl, *slot;
 
 	// allocate ram for ALSA elements
 	snd_ctl_elem_info_alloca (&info);
 
-    // retrieve uid from json object
+    // retrieve sound card uid from json object
     json_object_object_get_ex (sndcard, "uid", &slot);
     uid = json_object_get_string (slot);
 
 	if ((err = snd_hctl_open(&handle, uid, 0)) < 0) {
 		error("Control %s open error: %s", uid, snd_strerror(err));
-		return FATAL;
+		return NULL;
 	}
 	if ((err = snd_hctl_load(handle)) < 0) {
 		error("Control %s local error: %s\n", uid, snd_strerror(err));
-		return FATAL;
+		return NULL;
 	}
 
 	// main json structure for our sound card
@@ -489,4 +491,71 @@ PUBLIC json_object *alsaFindControls(AJG_session *session, json_object *sndcard,
 
    	// fprintf (stdout, "Json object: %s\n",json_object_to_json_string_ext(jsonsndcard, JSON_C_TO_STRING_PRETTY));
 	return (json_object_get(jsonsndcard));
+}
+
+PUBLIC json_object *alsaSetControls(AJG_session *session, int idxcard, AJG_request *request) {
+    static json_object * okresponse =NULL;
+	int err;
+	snd_ctl_t *handle;
+	snd_ctl_elem_info_t *info;
+    snd_ctl_elem_id_t *id;
+	snd_ctl_elem_value_t *control;
+    json_object *response, *slot;
+    char uidcard [6];
+
+    // make standard response only once
+    if (okresponse == NULL) okresponse=json_tokener_parse("{status: done}");
+
+    // open sound card with low level API as the other seems not stable enough
+    /* FIXME: Remove it when hctl find works ok !!! */
+    snprintf (uidcard, sizeof(uidcard),"hw:%i",idxcard);
+    if (err = snd_ctl_open(&handle, uidcard, 0) < 0) {
+   		error("Control %s open error: %s\n", uidcard, snd_strerror(err));
+   		return NULL;
+    }
+
+    /* FIXME: Remove it when hctl find works ok !!! */
+   	snd_ctl_elem_id_alloca(&id);
+    snd_ctl_elem_id_set_numid (id, request->numid);
+
+    snd_ctl_elem_info_alloca(&info);
+    snd_ctl_elem_info_set_id(info, id);
+    if ((err = snd_ctl_elem_info(handle, info)) < 0) {
+   		error("Cannot find the given element from control %s\n", uidcard);
+   		goto OnErrorExit;
+    }
+
+  	snd_ctl_elem_info_get_id(info, id);
+	snd_ctl_elem_value_alloca(&control);
+    snd_ctl_elem_value_set_id(control, id);
+	if ((err = snd_ctl_elem_read(handle, control)) < 0) {
+   	    error("Cannot read the given element from control %s\n", uidcard);
+	    goto OnErrorExit;
+	}
+
+    err = snd_ctl_ascii_value_parse(handle, control, info, request->args);
+  	if (err < 0) {
+  	    error("Control %s fail to parse args=%s: %s\n", uidcard, request->args, snd_strerror(err));
+  	    goto OnErrorExit;
+  	}
+
+	if ((err = snd_ctl_elem_write(handle, control)) < 0) {
+	   error("Control %s element write error: %s\n", uidcard, snd_strerror(err));
+  	   goto OnErrorExit;
+    }
+
+    // in quiet mode we only return OK otherwise we request full value of modified control
+	if (request->quiet) {
+        response = okresponse;
+	} else {
+	    // in verbose mode we return a modified controls
+	    json_object *sndcard = json_object_array_get_idx(alsaFindCards(session), idxcard);
+        response = alsaFindControls (session, sndcard, request);
+	}
+
+	return (response);
+
+OnErrorExit:
+    snd_ctl_close(handle);
+	return NULL;
 }

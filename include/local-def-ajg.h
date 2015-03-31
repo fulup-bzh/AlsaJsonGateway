@@ -1,5 +1,5 @@
 /*
-   alsa-gateway -- provide a REST/HTTP interface to ALSA-Mixer
+   alsajson-gw -- provide a REST/HTTP interface to ALSA-Mixer
 
    Copyright (C) 2015, Fulup Ar Foll
 
@@ -56,8 +56,9 @@ extern int verbose;
 
 typedef struct {
 
-  int  basicmod;
-  int  ctrlid;
+  int  quiet;
+  int  numid;
+  const char *args;
 
 } AJG_request;
 

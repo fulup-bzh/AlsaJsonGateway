@@ -21,9 +21,9 @@ OBJECTS= $(BUILT)/main-ajg.o $(BUILT)/config-ajg.o $(BUILT)/httpd-ajg.o $(BUILT)
 $(BUILT)/%.o: %.c ../include/local-def-ajg.h ../include/proto-def-ajg.h
 	$(CC) -c -o $@ $<
 
-all: $(BUILT)/daemon-ajg
+all: $(BUILT)/alsajson-gw
 
-$(BUILT)/daemon-ajg: $(OBJECTS)
+$(BUILT)/alsajson-gw: $(OBJECTS)
 	$(LD) $(EXTRALIBS) -o $@ $(OBJECTS)
 
 clean:
