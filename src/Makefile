@@ -16,7 +16,7 @@ DATE=`date +%d:%b:%y`
 BUILT=../built
 
 
-OBJECTS= $(BUILT)/main-ajg.o $(BUILT)/config-ajg.o $(BUILT)/httpd-ajg.o $(BUILT)/alsa-ajg.o
+OBJECTS= $(BUILT)/main-ajg.o $(BUILT)/config-ajg.o $(BUILT)/httpd-ajg.o $(BUILT)/alsa-ajg.o  $(BUILT)/session-ajq.o
 
 $(BUILT)/%.o: %.c ../include/local-def-ajg.h ../include/proto-def-ajg.h
 	$(CC) -c -o $@ $<

@@ -30,14 +30,51 @@
 #include "local-def-ajg.h"
 #include <alsa/asoundlib.h>
 
-// Loop on everypotential Sound card and register active one
-PUBLIC json_object * alsaFindCards (AJG_session *session) {
-      char cardName[32], *info, *name, *uid;
-      int  card, status, err, index;
-      json_object *sndcards =json_object_new_array();
+// retreive info for one given card
+PUBLIC json_object * alsaProbeCard (AJG_session *session, AJG_request *request) {
+      char  *info, *name, *uid;
+      json_object *sndcard;
+      char cardName[32];
       snd_ctl_t   *handle;
       snd_ctl_card_info_t *cardinfo;
       snd_ctl_card_info_alloca(&cardinfo);
+      int err, index;
+
+	  // not really clean, but this is how aplay search for ALSA boards
+	  sprintf(cardName, "hw:%d", request->sndcard);
+
+	  if ((err = snd_ctl_open(&handle, cardName, 0)) < 0) {
+		 return FATAL;
+	  }
+
+	  if ((err = snd_ctl_card_info(handle, cardinfo)) < 0) {
+		  error("Control device %s hw info error: %s", cardName, snd_strerror(err));
+		  snd_ctl_close(handle);
+		  return NULL;
+	  }
+
+	  sndcard = json_object_new_object();
+	  uid = strdup(cardName);
+      json_object_object_add (sndcard, "uid"  , json_object_new_string (uid));
+      name = strdup(snd_ctl_card_info_get_name (cardinfo));
+	  json_object_object_add (sndcard, "name" , json_object_new_string (name));
+
+	  uid   = strdup(cardName);
+
+	  if (!request->quiet) {
+		  info  = strdup(snd_ctl_card_info_get_longname (cardinfo));
+          json_object_object_add (sndcard, "info" , json_object_new_string (info));
+   	      if (verbose) fprintf (stderr, "alsaProbeCard uid=%s name=%s\n", uid, info);
+	  }
+
+	  snd_ctl_close(handle);
+	  return (sndcard);
+}
+
+// Loop on everypotential Sound card and register active one
+PUBLIC json_object * alsaFindCards (AJG_session *session, AJG_request *request) {
+      int  card;
+      json_object *sndcards =json_object_new_array();
 
       // if exist clean previous sndcards object
       if (session->sndcards != NULL) json_object_put (session->sndcards);
@@ -45,37 +82,15 @@ PUBLIC json_object * alsaFindCards (AJG_session *session) {
       // loop on potential card number
       for (card =0; card < 32; card++) {
           json_object *sndcard;
-          // not really clean, but this is how aplay search for ALSA boards
-          sprintf(cardName, "hw:%d", card);
 
-          // no more card
-          if ((err = snd_ctl_open(&handle, cardName, 0)) < 0) {
-             break;
-          }
-
-          if ((err = snd_ctl_card_info(handle, cardinfo)) < 0) {
-              error("Control device %s hw info error: %s", cardName, snd_strerror(err));
-              snd_ctl_close(handle);
-              continue;
-          }
-
-          sndcard = json_object_new_object();
-
-          index = card;
-          uid   = strdup(cardName);
-          name  = strdup(snd_ctl_card_info_get_name (cardinfo));
-          info  = strdup(snd_ctl_card_info_get_longname (cardinfo));
-          if (verbose) fprintf (stderr, "Found n°%-2d uid=%-15s name=%-30s info=%s\n", card, uid, info, info);
-
-          // create json object
- 		  json_object_object_add (sndcard, "index", json_object_new_int (index));
- 		  json_object_object_add (sndcard, "uid"  , json_object_new_string (uid));
- 		  json_object_object_add (sndcard, "name" , json_object_new_string (name));
- 		  json_object_object_add (sndcard, "info" , json_object_new_string (info));
+          // probe card from its number
+          request->sndcard = card;
+          sndcard = alsaProbeCard (session, request);
+          if (sndcard == NULL)  continue;
+          if (sndcard == FATAL) break;
 
           // add current sndcard to sndcards object
           json_object_array_add (sndcards, sndcard);
-          snd_ctl_close(handle);
       }
 
    // keep track of sndcard object in case we need it ???
@@ -323,7 +338,7 @@ STATIC json_object * getAlsaControl (snd_hctl_elem_t *elem, snd_ctl_elem_info_t 
     snd_hctl_elem_get_id(elem, elemid);
 
     // when ctrlid is set, return only this ctrl
-    if (request->numid != 0 && request->numid != snd_ctl_elem_id_get_numid(elemid)) return NULL;
+    if (request->numid != -1 && request->numid != snd_ctl_elem_id_get_numid(elemid)) return NULL;
 
     // build a json object out of element
     jsonAlsaCtrl = json_object_new_object(); // http://alsa-lib.sourcearchive.com/documentation/1.0.24.1-3/group__Control_ga4e4f251147f558bc2ad044e836e449d9.html
@@ -437,10 +452,10 @@ STATIC json_object * getAlsaControl (snd_hctl_elem_t *elem, snd_ctl_elem_info_t 
 }
 
 
-PUBLIC json_object *alsaFindControls(AJG_session *session, json_object *sndcard, AJG_request *request) {
+PUBLIC json_object *alsaFindControls(AJG_session *session, AJG_request *request) {
 	int err;
-    char const *uid,*tmp;
     int  count=0;
+    char uidcard [6];
 
     snd_ctl_elem_iface_t iface;
 
@@ -452,22 +467,27 @@ PUBLIC json_object *alsaFindControls(AJG_session *session, json_object *sndcard,
 	// allocate ram for ALSA elements
 	snd_ctl_elem_info_alloca (&info);
 
-    // retrieve sound card uid from json object
-    json_object_object_get_ex (sndcard, "uid", &slot);
-    uid = json_object_get_string (slot);
-
-	if ((err = snd_hctl_open(&handle, uid, 0)) < 0) {
-		error("Control %s open error: %s", uid, snd_strerror(err));
-		return NULL;
-	}
-	if ((err = snd_hctl_load(handle)) < 0) {
-		error("Control %s local error: %s\n", uid, snd_strerror(err));
-		return NULL;
-	}
+    // retrieve sound card uid from request
+    snprintf (uidcard, sizeof(uidcard),"hw:%i",request->sndcard);
 
 	// main json structure for our sound card
 	jsonsndcard = json_object_new_object();
-	json_object_object_add (jsonsndcard,"sndcard",  sndcard);
+
+	// add card description to control
+	if (request->quiet < 2) {
+	    json_object *sndcard;
+   	    sndcard =  alsaProbeCard (session, request);
+    	json_object_object_add (jsonsndcard,"sndcard",  sndcard);
+	}
+
+	if ((err = snd_hctl_open(&handle, uidcard, 0)) < 0) {
+		error("Control %s open error: %s", uidcard, snd_strerror(err));
+		return NULL;
+	}
+	if ((err = snd_hctl_load(handle)) < 0) {
+		error("Control %s local error: %s\n", uidcard, snd_strerror(err));
+		return NULL;
+	}
 
 	// create an json array to hold all sndcard controls
     jsonAlsaCtrls = json_object_new_array();
@@ -475,7 +495,7 @@ PUBLIC json_object *alsaFindControls(AJG_session *session, json_object *sndcard,
 	for (elem = snd_hctl_first_elem(handle); elem != NULL; elem = snd_hctl_elem_next(elem)) {
 
         if ((err = snd_hctl_elem_info(elem, info)) < 0) {
-			error("Control %s snd_hctl_elem_info error: %s\n", uid, snd_strerror(err));
+			error("Control %s snd_hctl_elem_info error: %s\n", uidcard, snd_strerror(err));
 			return FATAL;
 		}
 
@@ -493,7 +513,7 @@ PUBLIC json_object *alsaFindControls(AJG_session *session, json_object *sndcard,
 	return (json_object_get(jsonsndcard));
 }
 
-PUBLIC json_object *alsaSetControls(AJG_session *session, int idxcard, AJG_request *request) {
+PUBLIC json_object *alsaSetControls(AJG_session *session, AJG_request *request) {
     static json_object * okresponse =NULL;
 	int err;
 	snd_ctl_t *handle;
@@ -508,7 +528,7 @@ PUBLIC json_object *alsaSetControls(AJG_session *session, int idxcard, AJG_reque
 
     // open sound card with low level API as the other seems not stable enough
     /* FIXME: Remove it when hctl find works ok !!! */
-    snprintf (uidcard, sizeof(uidcard),"hw:%i",idxcard);
+    snprintf (uidcard, sizeof(uidcard),"hw:%i",request->sndcard);
     if (err = snd_ctl_open(&handle, uidcard, 0) < 0) {
    		error("Control %s open error: %s\n", uidcard, snd_strerror(err));
    		return NULL;
@@ -549,8 +569,9 @@ PUBLIC json_object *alsaSetControls(AJG_session *session, int idxcard, AJG_reque
         response = okresponse;
 	} else {
 	    // in verbose mode we return a modified controls
-	    json_object *sndcard = json_object_array_get_idx(alsaFindCards(session), idxcard);
-        response = alsaFindControls (session, sndcard, request);
+	    if (session->sndcards == NULL) alsaFindCards (session, request);  // if not card handle in session scan them
+	    request->quiet=1; // make response short
+        response = alsaFindControls (session, request);
 	}
 
 	return (response);
@@ -558,4 +579,17 @@ PUBLIC json_object *alsaSetControls(AJG_session *session, int idxcard, AJG_reque
 OnErrorExit:
     snd_ctl_close(handle);
 	return NULL;
+}
+
+// load every control from the board in a very quiet mode to serialize on disk
+PUBLIC json_object *alsaDownloadSession (AJG_session *session, AJG_request *request) {
+    json_object *jsonSession;
+
+    request->quiet = 1;  // run quiet mode
+    jsonSession = alsaFindControls (session, request);
+
+    return jsonSession;
+}
+
+PUBLIC json_object *alsaUploadSession (AJG_session *session, AJG_request *request, json_object  *jsonSession) {
 }

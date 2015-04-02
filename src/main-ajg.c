@@ -26,8 +26,6 @@
 #include <syslog.h>
 #include <setjmp.h>
 #include <signal.h>
-#include <unistd.h>
-
 #include <getopt.h>
 
 // Define command line option
@@ -44,6 +42,9 @@
  #define SET_TCP_PORT       111
  #define SET_ROOT_DIR       112
  #define SET_CACHE_TO       113
+ #define SET_UID            114
+ #define SET_PID_FILE       115
+ #define SET_SESSION_DIR   116
 
  #define SET_LOCAL_ONLY     120
  #define CHECK_ALSA_CARDS   121
@@ -51,7 +52,8 @@
  #define DISPLAY_VERSION    131
  #define DISPLAY_HELP       132
 
-static sigjmp_buf checkpoint; // context save for set/longjmp
+static sigjmp_buf exitpoint; // context save for set/longjmp
+static sigjmp_buf restartpoint; // context save for set/longjmp
 
 // Supported option
 static  AJG_options cliOptions [] = {
@@ -60,13 +62,16 @@ static  AJG_options cliOptions [] = {
   {SET_CONFIG       ,1,"config"          , "Config File path"},
   {SET_LOG          ,0,"log"             , "Log File path"},
 
-  {SET_FORGROUND    ,0,"foreground"      , "Get all in forground mode"},
+  {SET_FORGROUND    ,0,"foreground"      , "Get all in foreground mode"},
   {SET_BACKGROUND   ,0,"background"      , "Get all in background mode"},
   {SET_KILL_PREVIOUS,0,"kill-previous"   , "Kill active process if any"},
 
   {SET_TCP_PORT     ,1,"httpdport"       , "HTTP listening TCP port  [default 1234]"},
   {SET_ROOT_DIR     ,1,"rootdir"         , "HTTP Root Directory [default $PWD/public"},
   {SET_CACHE_TO     ,1,"cache-eol"       , "Client cache end of live [default 3600s]"},
+  {SET_UID          ,1,"setuid"          , "Change user id [default don't change]"},
+  {SET_PID_FILE     ,1,"pidfile"         , "PID file path [default none]"},
+  {SET_SESSION_DIR  ,1,"sessiondir"      , "Sessions file path [default rootdir/sessions]"},
 
   {SET_LOCAL_ONLY   ,0,"localhost"       , "Restric client to localhost"},
   {CHECK_ALSA_CARDS ,0,"checkalsa"       , "List Alsa Sound Card"},
@@ -82,21 +87,39 @@ struct option *gnuOptions;
 
 /*----------------------------------------------------------
  | signalQuit
- |  return to intitial checkpoint on order to close backend
+ |  return to intitial exitpoint on order to close backend
  |  before exiting.
  +--------------------------------------------------------- */
 void signalQuit (int signum)
 {
   if (verbose) printf ("INF:signalQuit received signal to quit\n");
-  longjmp (checkpoint, signum);
+  longjmp (exitpoint, signum);
 }
+
+/*----------------------------------------------------------
+ | timeout signalQuit
+ |
+ +--------------------------------------------------------- */
+void signalFail (int signum) {
+
+  sigset_t sigset;
+
+  // unlock timeout signal to allow a new signal to come
+  sigemptyset (&sigset);
+  sigaddset   (&sigset, SIGABRT);
+  sigprocmask (SIG_UNBLOCK, &sigset, 0);
+
+  fprintf (stderr, "%s ERR:getAllBlock acquisition timeout\n",configTime());
+  syslog (LOG_ERR, "Daemon fail and restart [please report bug]");
+  longjmp (restartpoint, signum);
+}
+
 
 /*----------------------------------------------------------
  | printversion
  |   print version and copyright
  +--------------------------------------------------------- */
- static void printVersion (void)
- {
+ static void printVersion (void) {
 
    fprintf (stderr,"\nalsajson-gw %3.2f\n", AJQ_VERSION);
    fprintf (stderr,"------------------ \n\n");
@@ -111,8 +134,7 @@ void signalQuit (int signum)
  |   print information from long option array
  +--------------------------------------------------------- */
 
- static void printHelp(char *name)
- {
+ static void printHelp(char *name) {
     int ind;
     char command[20];
 
@@ -139,12 +161,12 @@ static int writePidFile (AJG_config *config, int pid) {
   FILE *file;
 
   // if no pid file configure just return
-  if (config->pidFile == NULL) return -1;
+  if (config->pidfile == NULL) return 0;
 
   // open pid file in write mode
-  file = fopen(config->pidFile,"w");
+  file = fopen(config->pidfile,"w");
   if (file == NULL) {
-    fprintf (stderr,"%s ERR:writePidFile fail to open [%s]\n",configTime(), config->pidFile);
+    fprintf (stderr,"%s ERR:writePidFile fail to open [%s]\n",configTime(), config->pidfile);
     return -1;
   }
 
@@ -162,12 +184,12 @@ static int readPidFile (AJG_config *config) {
   FILE *file;
   int  status;
 
-  if (config->pidFile == NULL) return -1;
+  if (config->pidfile == NULL) return -1;
 
   // open pid file in write mode
-  file = fopen(config->pidFile,"r");
+  file = fopen(config->pidfile,"r");
   if (file == NULL) {
-    fprintf (stderr,"%s ERR:readPidFile fail to open [%s]\n",configTime(), config->pidFile);
+    fprintf (stderr,"%s ERR:readPidFile fail to open [%s]\n",configTime(), config->pidfile);
     return -1;
   }
 
@@ -194,6 +216,34 @@ static void closeSession (AJG_session *session) {
 }
 
 
+/*----------------------------------------------------------
+ | listenLoop
+ |   Main listening HTTP loop
+ +--------------------------------------------------------- */
+static void listenLoop (AJG_session *session) {
+  void  *err;
+
+  if (signal (SIGABRT, signalFail) == SIG_ERR) {
+        fprintf (stderr, "%s ERR: main fail to install Signal handler\n", configTime());
+        return;
+  }
+
+  // ------ Start httpd server
+  if (session->config->httpdPort > 0) {
+
+       // if no rootdir let's use current dir
+       if (session->config->rootdir == NULL) session->config->rootdir= getcwd(NULL,0);
+
+        err = httpdStart (session);
+        if (err != SUCCESS) return;
+
+        // infinite loop
+        httpdLoop(session);
+
+        fprintf (stderr, "hoops returned from infinite loop [report bug]\n");
+  }
+}
+
 /*---------------------------------------------------------
  | main
  |   Parse option and launch action
@@ -205,7 +255,6 @@ int main(int argc, char *argv[])  {
   int            optionIndex = 0;
   int            optc, ind, consoleFD;
   int            pid, nbcmd, status, cacheTimeout = 0;
-  void           *error;
 
   // ------------- Build session handler & init config -------
   session =  configInit ();
@@ -258,6 +307,16 @@ int main(int argc, char *argv[])  {
        session->config->rootdir   = optarg;
        break;
 
+    case SET_PID_FILE:
+       if (optarg == 0) goto needValueForOption;
+       session->config->pidfile   = optarg;
+       break;
+
+    case SET_SESSION_DIR:
+       if (optarg == 0) goto needValueForOption;
+       session->config->sessiondir   = optarg;
+       break;
+
     case  SET_CACHE_TO:
        if (optarg == 0) goto needValueForOption;
        if (!sscanf (optarg, "%d", &cacheTimeout)) goto notAnInteger;
@@ -267,9 +326,14 @@ int main(int argc, char *argv[])  {
        session->checkAlsa  = 1;
        break;
 
+    case SET_UID:
+       if (optarg != 0) goto noValueForOption;
+       if (!sscanf (optarg, "%d", &session->config->setuid)) goto notAnInteger;
+       break;
+
     case SET_FORGROUND:
        if (optarg != 0) goto noValueForOption;
-       session->forground  = 1;
+       session->foreground  = 1;
        break;
 
     case SET_BACKGROUND:
@@ -296,13 +360,14 @@ int main(int argc, char *argv[])  {
   }
 
   // ------------------ sanity check ----------------------------------------
-
-  if  ((session->background) && (session->forground)) {
-     fprintf (stderr, "%s ERR: cannot select forground & background at the same time\n",configTime());
+  if  ((session->background) && (session->foreground)) {
+    fprintf (stderr, "%s ERR: cannot select foreground & background at the same time\n",configTime());
      exit (-1);
   }
 
   // ------------------ Some useful default values -------------------------
+  if  ((session->background == 0) && (session->foreground == 0)) session->foreground=1;
+
   if (session->config->httpdPort    == 0) session->config->httpdPort=1234;
 
   // cache timeout is an interger but http header need a string.
@@ -314,18 +379,19 @@ int main(int argc, char *argv[])  {
      getcwd(session->config->rootdir, 512);
      strncat (session->config->rootdir, "/public",512);
 
-     fprintf (stderr, "rootdir=%s",session->config->rootdir );
+     if (verbose) fprintf (stderr, "rootdir=%s",session->config->rootdir );
   }
 
 
-  // ------------------ Search for Alsa Board -------------------------------
-
+  // ------------------ Probe for Alsa Board and exit -------------------------------
   if (session->checkAlsa) {
-     json_object *sndcards =  alsaFindCards(session);
+     AJG_request request;
+     json_object *sndcards =  alsaFindCards(session, &request);
      json_object *sndcard, *slot;
      int index, idx, length;
      char const *uid, *name, *info;
 
+     memset (&request,0,sizeof (request));
      length = json_object_array_length (sndcards);
      fprintf (stderr,"\n---- Check Alsa [%d] cards ------\n", length);
 
@@ -353,7 +419,6 @@ int main(int argc, char *argv[])  {
   }
 
 
-
   // open syslog if ever needed
   openlog("alsajson-gw", 0, LOG_DAEMON);
 
@@ -364,7 +429,7 @@ int main(int argc, char *argv[])  {
     switch (pid) {
     
     case -1:
-      fprintf (stderr, "%s ERR:main --kill-previous ignored no PID file [%s]\n",configTime(), session->config->pidFile);
+      fprintf (stderr, "%s ERR:main --kill-previous ignored no PID file [%s]\n",configTime(), session->config->pidfile);
       break;
      
     case 0:
@@ -374,11 +439,11 @@ int main(int argc, char *argv[])  {
     default:             
       status = kill (pid,SIGINT );
       if (status == 0) {
-	if (verbose) printf ("%s INF:main signal INTR sent to pid:%d \n", configTime(), pid);
+	     if (verbose) printf ("%s INF:main signal INTR sent to pid:%d \n", configTime(), pid);
       } else {
-        // try kill -9
-        status = kill (pid,9);
-        if (status != 0)  fprintf (stderr, "%s ERR:main failled to killed pid=%d \n",configTime(), pid);
+         // try kill -9
+         status = kill (pid,9);
+         if (status != 0)  fprintf (stderr, "%s ERR:main failled to killed pid=%d \n",configTime(), pid);
       }
     } // end switch pid
   } // end killPrevious
@@ -391,41 +456,47 @@ int main(int argc, char *argv[])  {
     return (-1);
   }
 
-  // save checkpoint context when returning from longjmp closeSession and exit
-  status = setjmp (checkpoint); // return !+ when coming from longjmp
+  // save exitpoint context when returning from longjmp closeSession and exit
+  status = setjmp (exitpoint); // return !+ when coming from longjmp
   if (status != 0) {
     if (verbose) printf ("INF:main returning from longjump after signal [%d]\n", status);
     closeSession (session);
     goto exitOnSignal;
   }
 
+  // let's run this program with a low priority
+  nice (20);
+
+
   // ------------------ Finaly Process Commands -----------------------------
-  fprintf (stderr, "Start Processing Commands\n");
+  fprintf (stderr, "AlsaJson: Process init commands\n");
+   if (session->config->setuid) {
+     int err;
 
-  // ------ Start httpd server
-  if (session->config->httpdPort > 0) {
+     err = setuid(session->config->setuid);
+     if (err) error ("Fail to change program uid error=%d", snd_strerror(err));
+   }
 
-       // if no rootdir let's use current dir
-       if (session->config->rootdir == NULL) session->config->rootdir= getcwd(NULL,0);
-
-        error = httpdStart (session);
-        if (error != SUCCESS) goto errorCommand;
-
-        httpdLoop(session);
-  }
+   // check session dir and create if it does not exist
+   if (sessionCheckdir (session) != 0) goto errSessiondir;
 
 
+  // let's not take the risk to run as ROOT
+  if (getuid == 0)  setuid(65534);  // run as nobody
 
-  // ---- run in forground mode --------------------
-  if (session->forground) {
+  // ---- run in foreground mode --------------------
+  if (session->foreground) {
 
-    if (verbose) printf ("INF:main entering forground mode\n");
+    if (verbose) fprintf (stderr,"AlsaJson: Keeping foreground mode\n");
     
     // write a pid file for --kill-previous and --raise-debug option  
     status = writePidFile (session->config, getpid());
     if (status == -1) goto errorPidFile;
-    
-  } // end forground
+
+    // enter listening loop in foreground
+    listenLoop(session);
+    goto exitInitLoop;
+  } // end foreground
 
   
   // --------- run in background mode -----------
@@ -433,7 +504,7 @@ int main(int argc, char *argv[])  {
 
       // check first we can talk with ALSA board
       // if (status != 0) goto errorCommand;
-      if (verbose) printf ("INF:main entering background mode\n");
+      if (verbose) printf ("AlsaJson: Entering background mode\n");
 
       // open /dev/console to redirect output messAJGes
       consoleFD = open(session->config->console, O_WRONLY | O_APPEND | O_CREAT , 0640);
@@ -445,7 +516,7 @@ int main(int argc, char *argv[])  {
       // son process get all data in standalone mode
       if (pid == 0) {
 
- 	 printf ("\nalsajson-gw:background mode (pid:%d console:%s)\n", getpid(),session->config->console);
+ 	 printf ("\nAlsaJson: background mode (pid:%d console:%s)\n", getpid(),session->config->console);
 
          // redirect default I/O on console
          close (2); dup(consoleFD);  // redirect stderr
@@ -453,8 +524,9 @@ int main(int argc, char *argv[])  {
          close (0);           // no need for stdin
          close (consoleFD);
 
-	 setsid();   // allow father process to fully exit
-	 sleep (2);  // allow main to leave and release port
+    	 setsid();   // allow father process to fully exit
+	     sleep (2);  // allow main to leave and release port
+
          fprintf (stderr, "----------------------------\n", getpid());
          fprintf (stderr, "%s INF:main background pid=%d\n", configTime(), getpid());
          fflush  (stderr);
@@ -462,10 +534,9 @@ int main(int argc, char *argv[])  {
          // if everything look OK then look forever    
          syslog (LOG_ERR, "Entering background mode");
 
-         // try to unlink pid file if any
-         if (session->config->pidFile != NULL)  unlink (session->config->pidFile);
-  
-         return 0;
+         // should normally never return from this loop
+         listenLoop(session);
+         goto exitInitLoop;
       }
 
       // if fail nothing much to do
@@ -478,7 +549,7 @@ int main(int argc, char *argv[])  {
       // we are in father process, we don't need this one
       close (consoleFD);
 
-  } // end background-forground
+  } // end background-foreground
 
 normalExit:
   closeSession (session);   // try to close everything before leaving
@@ -487,7 +558,7 @@ normalExit:
 
 // ------------- Fatal ERROR display error and quit  -------------
 errorPidFile:
-  fprintf (stderr,"\nERR:main Failled to write pid file [%s]\n\n", session->config->pidFile);
+  fprintf (stderr,"\nERR:main Failled to write pid file [%s]\n\n", session->config->pidfile);
   exit (-1);
 
 errorSon:
@@ -541,6 +612,15 @@ exitOnSignal:
 
 errConsole:
   fprintf (stderr,"\nERR:cannot open /dev/console (use --foreground)\n\n");
+  exit (-1);
+
+errSessiondir:
+  fprintf (stderr,"\nERR:cannot read/write session dir\n\n");
+  exit (-1);
+
+exitInitLoop:
+  // try to unlink pid file if any
+  if (session->config->pidfile != NULL)  unlink (session->config->pidfile);
   exit (-1);
 
 } /* END main() */

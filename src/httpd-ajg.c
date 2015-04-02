@@ -46,20 +46,36 @@
 
 //  List of Query Commands
 static  json_object * Request2Commands = NULL;
-#define GATEWAY_PING 1
-#define SND_LIST_ALL 2
-#define SND_LIST_ONE 3
-#define SND_SET_CTRL 4
+#define GATEWAY_PING   1
+#define CARD_GET_ALL   2
+#define CARD_GET_ONE   3
+#define CTRL_GET_ALL   4
+#define CTRL_GET_ONE   5
+#define CTRL_SET_ONE   6
+#define SESSION_LIST   7
+#define SESSION_STORE  8
+#define SESSION_LOAD   9
+
+// some usefull static object initialized when entering listen loop.
+static json_object *AJG_JSON_TYPE;
+static json_object *AJG_JSON_TRUE;
+static json_object *AJG_JSON_FALSE;
+
 
 // use json lib hash table capabilities to handle command parsing
 STATIC void initService (AJG_session *session) {
 
     Request2Commands = json_object_new_object();
 
-    json_object_object_add(Request2Commands, "get-ping"     , json_object_new_int (GATEWAY_PING));
-    json_object_object_add(Request2Commands, "get-cards"    , json_object_new_int (SND_LIST_ALL));
-    json_object_object_add(Request2Commands, "get-ctrls"    , json_object_new_int (SND_LIST_ONE));
-    json_object_object_add(Request2Commands, "set-ctrls"    , json_object_new_int (SND_SET_CTRL));
+    json_object_object_add(Request2Commands, "ping-get"     , json_object_new_int (GATEWAY_PING));
+    json_object_object_add(Request2Commands, "card-get-all" , json_object_new_int (CTRL_GET_ALL));
+    json_object_object_add(Request2Commands, "card-get-one" , json_object_new_int (CTRL_GET_ALL));
+    json_object_object_add(Request2Commands, "ctrl-get-all" , json_object_new_int (CTRL_GET_ALL));
+    json_object_object_add(Request2Commands, "ctrl-get-one" , json_object_new_int (CTRL_GET_ONE));
+    json_object_object_add(Request2Commands, "ctrl-set-one" , json_object_new_int (CTRL_SET_ONE));
+    json_object_object_add(Request2Commands, "session-list" , json_object_new_int (SESSION_LIST));
+    json_object_object_add(Request2Commands, "session-store", json_object_new_int (SESSION_STORE));
+    json_object_object_add(Request2Commands, "session-load" , json_object_new_int (SESSION_LOAD));
 
 }
 
@@ -72,15 +88,15 @@ STATIC  json_object *gatewayPing (void) {
     return (pingJson);
 }
 
-// process rest API request
+// process rest API query
 STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, const char *method) {
   static int count;
-  const char  *request, *param;
+  const char  *query, *param;
   json_object *cmd;
   int sndcard, done, ret;
   json_object *jsonResponse, *sndcardJ;
   struct MHD_Response  *response;
-  AJG_request select;
+  AJG_request request;
 
 
   // process POST method
@@ -91,88 +107,139 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
 
   // process GET method
   } else if (0 == strcmp (method, MHD_HTTP_METHOD_GET)) {
-      // extract request request attribute from URL through ApiCmd
-      request = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "request");
-
-
+      // extract request query attribute from URL through ApiCmd
+      query = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "request");
   // ignore any other methods
   } else return MHD_NO;
   
-  if (request == NULL) return MHD_NO;
+  if (query == NULL) goto invalidRequest;
+
+  // clean up session
+  memset (request, 0, sizeof (request));
 
   // extract command value from json object and process it
-  done=json_object_object_get_ex (Request2Commands, request, &cmd);
+  done=json_object_object_get_ex (Request2Commands, query, &cmd);
+
+  request.sndcard = -1; // no default card
+  param = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "sndcard");
+  if (param && ! sscanf (param, "%d", &request.sndcard)) goto invalidRequest;
+
+  param = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "quiet");
+  if (param && ! sscanf (param, "%d", &request.quiet)) goto invalidRequest;
+
+  request.numid = -1;  // no default
+  param = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "numid");
+  if (param && ! sscanf (param, "%d", &request.numid)) goto invalidRequest;
+
+  // no default name
+  request.args = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "args");
+
   switch (json_object_get_int(cmd)) {
 
-  	case GATEWAY_PING: // http://localhost:1234/alsajson?request=gateway-ping
-  	    if (verbose) fprintf (stderr, "%d: alsajson processing GATEWAY_PING\n", count++);
-  	     jsonResponse = gatewayPing ();
+    case SESSION_LIST:  {// http://localhost:1234/jsonapi?request=gateway-ping
+       jsonResponse = sessionList (session);
+       break;
+    }
+
+  	case SESSION_LOAD: { // http://localhost:1234/jsonapi?request=session-load&args=sessionname
+  	   json_object *jsonSession;
+
+       if (verbose)  fprintf (stderr, "%d: alsajson SESSION_LOAD card=%d\n", count ++, request.sndcard );
+       if (!request.sndcard < 0) goto invalidRequest;
+
+       jsonSession = sessionFromDisk (session, &request);               // get session from disk
+       if (jsonSession != NULL) {
+           alsaUploadSession (session, &request, jsonSession);          // push session to alsa board
+           jsonResponse =    alsaDownloadSession(session, &request);    // we return effective date from sound board
+           json_object_put   (jsonSession);                             // decrease reference count to free the json object
+       }
+       break;
+   	}
+
+  	case SESSION_STORE: {// http://localhost:1234/jsonapi?request=session-store&sndcard=2&args=sessionname
+  	  json_object *jsonSession;
+
+      if (verbose)  fprintf (stderr, "%d: alsajson SESSION_STORE card=%d session=%d\n", count ++, request.sndcard, request.args );
+      if (request.sndcard < 0 || request.args  == NULL) goto invalidRequest;
+
+      jsonSession = alsaDownloadSession (session, &request);            // push session to alsa board
+      if (jsonSession != NULL) {
+         jsonResponse =sessionToDisk (session, &request, jsonSession);  // store session on disk
+      }
+      break;
+   	}
+
+  	case GATEWAY_PING: // http://localhost:1234/jsonapi?request=ping-get [&sndcard=0]
+  	    if (verbose) fprintf (stderr, "%d: alsajson GATEWAY_PING\n", count++);
+
+        if (sndcard < 0)  jsonResponse = gatewayPing ();
+        else jsonResponse = alsaProbeCard (session, &request);
   	    break;
 
-  	case SND_LIST_ALL: // http://localhost:1234/alsajson?request=get-cards
-  	    if (verbose)  fprintf (stderr, "%d: alsajson processing SND_LIST_ALL\n", count ++);
-  	     jsonResponse = alsaFindCards (session);
+  	case CARD_GET_ALL: // http://localhost:1234/jsonapi?request=cards-get-all
+  	    if (verbose)  fprintf (stderr, "%d: alsajson CARD_GET_ALL\n", count ++);
+  	    jsonResponse = alsaFindCards (session, &request);
   	    break;
 
-  	case SND_LIST_ONE: // http://localhost:1234/alsajson?request=get-ctrl&sndcard=2&quiet=0
-  	    if (verbose)  fprintf (stderr, "%d: alsajson processing SND_LIST_ONE\n", count ++);
-  	    sndcard = 0; // default card 0
-  	    param = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "sndcard");
-  	    if (param && ! sscanf (param, "%d", &sndcard)) goto notAnInteger;
+  	case CARD_GET_ONE: // http://localhost:1234/jsonapi?request=cards-get-one&sendcard=0
+  	    if (verbose)  fprintf (stderr, "%d: alsajson CARD_GET_ONE card=%d\n", count ++, request.sndcard );
+   	    if (request.sndcard < 0) goto invalidRequest;
+  	    jsonResponse = alsaFindCards (session, &request);
+  	    break;
 
-  	    param = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "quiet");
-  	    select.quiet = 0; // default full mode
-  	    if (param && ! sscanf (param, "%d", &select.quiet)) goto notAnInteger;
+  	case CTRL_GET_ALL: // http://localhost:1234/jsonapi?request=ctrl-get-all&sndcard=0
+  	    if (verbose)  fprintf (stderr, "%d: alsajson CTRL_GET_ALL\n", count ++);
+   	    if (request.sndcard < 0) goto invalidRequest;
+  	    jsonResponse = alsaFindControls (session, &request);
+  	    break;
 
-  	    param = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "numid");
-  	    select.numid = 0;  // default all controls
-  	    if (param && ! sscanf (param, "%d", &select.numid)) goto notAnInteger;
-
-  	    sndcardJ = json_object_array_get_idx(alsaFindCards(session), sndcard);
-  	    if (sndcardJ == NULL)  goto invalidRequest;
-        jsonResponse = alsaFindControls (session, sndcardJ, &select);
+  	case CTRL_GET_ONE: // http://localhost:1234/jsonapi?request=ctrls-get-one&sndcard=2&numid=5&quiet=0
+  	    if (verbose)  fprintf (stderr, "%d: alsajson CTRL_GET_ONE card=%d numid=%d\n", count ++, request.sndcard ,request.numid);
+    	if (request.sndcard < 0 || request.numid < 0) goto invalidRequest;
+        jsonResponse = alsaFindControls (session, &request);
  	    break;
 
-  	case SND_SET_CTRL: {// http://localhost:1234/alsajson?request=set-ctrls&sndcard=2&quiet=1&numid=128&values='10 5'
-
-  	    if (verbose)  fprintf (stderr, "%d: alsajson processing SND_SET_CTRL\n", count ++);
-  	    sndcard = 0; // default card 0
-  	    param = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "sndcard");
-  	    if (param && ! sscanf (param, "%d", &sndcard)) goto notAnInteger;
-
-  	    param = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "quiet");
-  	    select.quiet = 0; // default full mode
-  	    if (param && ! sscanf (param, "%d", &select.quiet)) goto notAnInteger;
-
-  	    param = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "numid");
-  	    if (!param) goto argumentMissing;
-  	    if (!sscanf (param, "%d", &select.numid)) goto notAnInteger;
-
-  	    select.args = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "args");
-  	    if (!select.args) goto argumentMissing;
-
-        jsonResponse = alsaSetControls (session, sndcard, &select);
+  	case CTRL_SET_ONE: {// http://localhost:1234/jsonapi?request=ctrls-set-one&sndcard=2&quiet=1&numid=128&args='10 5'
+  	    if (verbose)  fprintf (stderr, "%d: alsajson processing CTRL_SET_ONE card=%d numid=%d\n", count ++, request.sndcard ,request.numid);
+    	if (request.sndcard < 0 || request.args == NULL ||  request.numid < 0) goto invalidRequest;
+        jsonResponse = alsaSetControls (session, &request);
  	    break;
  	    }
 
-  	default: goto invalidRequest;
+  	default:
+  	   if (verbose)  fprintf (stderr, "%d: alsajson Unknown Request request=%s card=%d numid=%d\n", count ++, query, request.sndcard ,request.numid);
+  	   goto invalidRequest;
    }
 
-   if (jsonResponse != NULL)  {
-           // return json object to client [note we need to copy serialize object because libmicrohttpd does not provide adequate free callback
-           response = MHD_create_response_from_buffer
-                      (strlen (json_object_to_json_string(jsonResponse)),
-                      (void *) json_object_to_json_string(jsonResponse),
-                      MHD_RESPMEM_MUST_COPY);
 
-          ret = MHD_queue_response (connection, MHD_HTTP_OK, response);
-          MHD_destroy_response (response);
-          json_object_put (jsonResponse); // decrease reference count to free the json object
-          return ret;
-  }
+   // process application responses
+   if (jsonResponse == FATAL) goto invalidRequest;
 
-invalidRequest: {
-          fprintf (stderr, "%d: alsajson Unknown/Invalid API/Card request=%s\n", count ++, request);
+   // encapsulate API response on an AJG object
+   {
+       json_object *ajgResponse = json_object_new_object();
+       const char *serialized;
+       json_object_object_add (ajgResponse, "type" , AJG_JSON_TYPE);
+
+       if (jsonResponse == NULL) {  // empty valid response
+          json_object_object_add (ajgResponse, "data" , AJG_JSON_FALSE);
+       } else {
+          json_object_object_add (ajgResponse, "data" , jsonResponse);
+       }
+
+       // return json object to client [note we need to copy serialize object because libmicrohttpd does not provide adequate free callback
+       serialized = json_object_to_json_string(ajgResponse);
+       response = MHD_create_response_from_buffer (strlen (serialized), (void*)serialized, MHD_RESPMEM_MUST_COPY);
+
+        ret = MHD_queue_response (connection, MHD_HTTP_OK, response);
+        MHD_destroy_response (response);
+        json_object_put (jsonResponse); // decrease reference count to free the json object
+        return ret;
+    }
+
+
+invalidRequest:
+          fprintf (stderr, "%d: alsajson Unknown/Invalid API/Card query=%s\n", count ++, query);
           const char *errorstr = "<html><body>Alsa-Json-Gateway Invalid/Unknown Request</body></html>";
           response = MHD_create_response_from_buffer (strlen (errorstr),
                            (void *) errorstr,	 MHD_RESPMEM_PERSISTENT);
@@ -184,16 +251,6 @@ invalidRequest: {
               ret= MHD_NO;
           }
           return ret;
-}
-
-
-argumentMissing:
-  fprintf (stderr,"\nERR:AlsaJsonGateway Api request=%s one/more arguments is/are missing\n", request);
-  return MHD_NO;
-
-notAnInteger:
-  fprintf (stderr,"\nERR:AlsaJsonGateway Api request=%s param=%s (should be integer)\n", request, param);
-  return MHD_NO;
 }
 
 // Create check etag value
@@ -297,7 +354,7 @@ STATIC int newRequest (void *cls,
   AJG_session *session = cls;
   int ret;
 
-  if (0 == strcmp (url, "/alsajson")) {
+  if (0 == strcmp (url, "/jsonapi")) {
        ret = requestApi (connection, session, method);
   } else {
       if (0 != strcmp (method, MHD_HTTP_METHOD_GET)) return MHD_NO;   /* unexpected method */
@@ -320,7 +377,7 @@ PUBLIC void* httpdStart (AJG_session *session) {
   if (verbose) printf ("starting http port=%d rootdir=%s\n", session->config->httpdPort, session->config->rootdir);
 
   session->httpd = (void*) MHD_start_daemon (
-			MHD_USE_SELECT_INTERNALLY | MHD_USE_DEBUG, // use select and not threads
+			MHD_USE_SELECT_INTERNALLY | MHD_USE_DEBUG, // use request and not threads
             session->config->httpdPort,   // port
             &newClient, NULL,       // Tcp Accept call back + extra attribute
             &newRequest, session,  // Http Request Call back + extra attribute
@@ -337,6 +394,15 @@ PUBLIC void* httpdStart (AJG_session *session) {
 
 // infinit loop
 PUBLIC int httpdLoop (AJG_session *session) {
+
+    // init static constants
+    if (AJG_JSON_TYPE == NULL) {
+      AJG_JSON_TYPE  = json_object_new_string ("alsajson");
+      AJG_JSON_TRUE  = json_object_new_boolean (1);
+      AJG_JSON_FALSE = json_object_new_boolean  (0);
+    }
+
+
     if (verbose) fprintf (stderr, "Httpd waiting loop\n");
     while (TRUE)  {
         fprintf (stderr, "Use Ctrl-C to quit");

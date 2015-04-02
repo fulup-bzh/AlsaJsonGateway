@@ -55,7 +55,7 @@ typedef int BOOL;
 extern int verbose;
 
 typedef struct {
-
+  int  sndcard;
   int  quiet;
   int  numid;
   const char *args;
@@ -68,11 +68,13 @@ typedef struct {
   char *logname;           // logfile path for wx2000 info & error log
   char *console;           // console device name (can be a file or a tty)
   char *confname;          // path to config file
-  char *pidFile;          // where to store pid when running background
 
   int  localhostOnly;
   int  httpdPort;
-  char *rootdir;
+  char *rootdir;           // base dir for httpd file download
+  char *pidfile;           // where to store pid when running background
+  char *sessiondir;        // where to store mixer session files
+  uid_t setuid;
 
   char cacheTimeout [5];
 
@@ -102,7 +104,7 @@ typedef struct {
 
   // level of execution
   int  background;        // run in backround mode
-  int  forground;         // run in forground mode
+  int  foreground;        // run in forground mode
   int  debugLevel;        // 0-9
   int  checkAlsa;         // Display active Alsa Board
 
