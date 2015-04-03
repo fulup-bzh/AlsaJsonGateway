@@ -30,19 +30,23 @@ PUBLIC json_object *alsaUploadSession   (AJG_session *session, AJG_request *requ
 
 
 // Session handling
-PUBLIC int sessionCheckdir             (AJG_session *session);
+PUBLIC AJG_ERROR sessionCheckdir             (AJG_session *session);
 PUBLIC json_object *sessionList        (AJG_session *session);
 PUBLIC json_object *sessionToDisk      (AJG_session *session, AJG_request *request, json_object *jsonSession);
 PUBLIC json_object *sessionFromDisk    (AJG_session *session, AJG_request *request);
 
 
 // Httpd proto
-PUBLIC void* httpdStart          (AJG_session *session);
+PUBLIC AJG_ERROR httpdStart          (AJG_session *session);
+PUBLIC AJG_ERROR httpdLoop           (AJG_session *session);
 PUBLIC void  httpdStop           (AJG_session *session);
-PUBLIC int   httpdLoop           (AJG_session *session);
 
 
 
 // config proto
 PUBLIC char *configTime        (void);
 PUBLIC AJG_session *configInit (void);
+PUBLIC json_object *jsonNewMessage (AJG_ERROR level, char* format, ...);
+PUBLIC json_object *jsonNewError (AJG_ERROR level);
+PUBLIC json_object *jsonNewAjgType (void);
+

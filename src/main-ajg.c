@@ -30,21 +30,19 @@
 
 // Define command line option
  #define SET_VERBOSE        101
- #define SET_DEBUG          102
- #define SET_CONFIG         103
- #define SET_LOG            104
  #define SET_BACKGROUND     105
  #define SET_FORGROUND      106
- #define SET_KILL_PREVIOUS  107
- #define SET_RAISE_DEBUG    108
- #define SET_CLEAR_DEBUG    109
+ #define KILL_PREV_EXIT     107
+ #define KILL_PREV_REST     108
 
  #define SET_TCP_PORT       111
  #define SET_ROOT_DIR       112
  #define SET_CACHE_TO       113
  #define SET_UID            114
  #define SET_PID_FILE       115
- #define SET_SESSION_DIR   116
+ #define SET_SESSION_DIR    116
+ #define SET_CONFIG_FILE    117
+ #define SET_CONFIG_SAVE    118
 
  #define SET_LOCAL_ONLY     120
  #define CHECK_ALSA_CARDS   121
@@ -58,13 +56,11 @@ static sigjmp_buf restartpoint; // context save for set/longjmp
 // Supported option
 static  AJG_options cliOptions [] = {
   {SET_VERBOSE      ,0,"verbose"         , "Verbose Mode"},
-  {SET_DEBUG        ,0,"debug-level"     , "DebugLevel" },
-  {SET_CONFIG       ,1,"config"          , "Config File path"},
-  {SET_LOG          ,0,"log"             , "Log File path"},
 
   {SET_FORGROUND    ,0,"foreground"      , "Get all in foreground mode"},
   {SET_BACKGROUND   ,0,"background"      , "Get all in background mode"},
-  {SET_KILL_PREVIOUS,0,"kill-previous"   , "Kill active process if any"},
+  {KILL_PREV_EXIT   ,0,"kill"            , "Kill active process if any and exit"},
+  {KILL_PREV_REST   ,0,"restart"        , "Kill active process if any and restart"},
 
   {SET_TCP_PORT     ,1,"httpdport"       , "HTTP listening TCP port  [default 1234]"},
   {SET_ROOT_DIR     ,1,"rootdir"         , "HTTP Root Directory [default $PWD/public"},
@@ -72,6 +68,8 @@ static  AJG_options cliOptions [] = {
   {SET_UID          ,1,"setuid"          , "Change user id [default don't change]"},
   {SET_PID_FILE     ,1,"pidfile"         , "PID file path [default none]"},
   {SET_SESSION_DIR  ,1,"sessiondir"      , "Sessions file path [default rootdir/sessions]"},
+  {SET_CONFIG_FILE  ,1,"config"          , "Config Filename [default rootdir/sessions/configs/default.ajg]"},
+  {SET_CONFIG_SAVE  ,0,"save"            , "Save config on disk [default no]"},
 
   {SET_LOCAL_ONLY   ,0,"localhost"       , "Restric client to localhost"},
   {CHECK_ALSA_CARDS ,0,"checkalsa"       , "List Alsa Sound Card"},
@@ -209,8 +207,6 @@ static int readPidFile (AJG_config *config) {
  +--------------------------------------------------------- */
 static void closeSession (AJG_session *session) {
 
-  // close backends
-  // logClose     (session->log);
   if (session->sndcards != NULL) json_object_put (session->sndcards);
 
 }
@@ -221,7 +217,7 @@ static void closeSession (AJG_session *session) {
  |   Main listening HTTP loop
  +--------------------------------------------------------- */
 static void listenLoop (AJG_session *session) {
-  void  *err;
+  AJG_ERROR  err;
 
   if (signal (SIGABRT, signalFail) == SIG_ERR) {
         fprintf (stderr, "%s ERR: main fail to install Signal handler\n", configTime());
@@ -235,13 +231,50 @@ static void listenLoop (AJG_session *session) {
        if (session->config->rootdir == NULL) session->config->rootdir= getcwd(NULL,0);
 
         err = httpdStart (session);
-        if (err != SUCCESS) return;
+        if (err != AJG_SUCCESS) return;
 
         // infinite loop
         httpdLoop(session);
 
         fprintf (stderr, "hoops returned from infinite loop [report bug]\n");
   }
+}
+
+/*----------------------------------------------------------
+ | probeAlsa
+ |   Probe ALSA and list sound cards
+ +--------------------------------------------------------- */
+static void probeAlsa (AJG_session *session) {
+      AJG_request request;
+      json_object *sndcards =  alsaFindCards(session, &request);
+      json_object *sndcard, *slot;
+      int index, idx, length;
+      char const *uid, *name, *info;
+
+      memset (&request,0,sizeof (request));
+      length = json_object_array_length (sndcards);
+      fprintf (stderr,"\n---- Check Alsa [%d] cards ------\n", length);
+
+      // scan through json object [note json object are not really design for this, but nice to check json structure before exporting them ]
+      for (idx=0; idx < length; idx++) {
+         sndcard = json_object_array_get_idx(sndcards, idx);
+
+         json_object_object_get_ex (sndcard, "index", &slot);
+         index = json_object_get_int (slot);
+
+         json_object_object_get_ex (sndcard, "uid", &slot);
+         uid = json_object_get_string (slot);
+
+         json_object_object_get_ex (sndcard, "name", &slot);
+         name = json_object_get_string (slot);
+
+         json_object_object_get_ex (sndcard, "info", &slot);
+         info = json_object_get_string (slot);
+
+         fprintf (stderr, " + %-2d uid=%-5s name:%-25s [%s]\n", index, uid, name, info);
+      }
+      fprintf (stderr,"---- Check Alsa Done ------");
+
 }
 
 /*---------------------------------------------------------
@@ -254,10 +287,13 @@ int main(int argc, char *argv[])  {
   char*          programName = argv [0];
   int            optionIndex = 0;
   int            optc, ind, consoleFD;
-  int            pid, nbcmd, status, cacheTimeout = 0;
+  int            pid, nbcmd, status;
+  AJG_config     cliconfig; // temp structure to store CLI option before file config upload
 
   // ------------- Build session handler & init config -------
   session =  configInit ();
+  memset (&cliconfig,0,sizeof(cliconfig));
+
 
   // ------------------ Process Command Line -----------------------
 
@@ -287,48 +323,45 @@ int main(int argc, char *argv[])  {
        verbose = 1;
        break;
 
-     case SET_DEBUG:
-       if (optarg == 0) goto needValueForOption;
-       if (!sscanf (optarg, "%d", &session->debugLevel)) goto notAnInteger;
-       break;
-
-    case SET_CONFIG:
-       if (optarg == 0) goto needValueForOption;
-       session->config->confname   = optarg;
-       break;
-
     case SET_TCP_PORT:
        if (optarg == 0) goto needValueForOption;
-       if (!sscanf (optarg, "%d", &session->config->httpdPort)) goto notAnInteger;
+       if (!sscanf (optarg, "%d", &cliconfig.httpdPort)) goto notAnInteger;
        break;
 
     case SET_ROOT_DIR:
        if (optarg == 0) goto needValueForOption;
-       session->config->rootdir   = optarg;
+       cliconfig.rootdir   = optarg;
        break;
 
     case SET_PID_FILE:
        if (optarg == 0) goto needValueForOption;
-       session->config->pidfile   = optarg;
+       cliconfig.pidfile   = optarg;
        break;
 
     case SET_SESSION_DIR:
        if (optarg == 0) goto needValueForOption;
-       session->config->sessiondir   = optarg;
+       cliconfig.sessiondir   = optarg;
+       break;
+
+    case  SET_CONFIG_FILE:
+       if (optarg == 0) goto needValueForOption;
+       cliconfig.configfile   = optarg;
        break;
 
     case  SET_CACHE_TO:
        if (optarg == 0) goto needValueForOption;
-       if (!sscanf (optarg, "%d", &cacheTimeout)) goto notAnInteger;
+       if (!sscanf (optarg, "%d", &cliconfig.cacheTimeout)) goto notAnInteger;
+       break;
 
-    case CHECK_ALSA_CARDS:
+
+    case SET_CONFIG_SAVE:
        if (optarg != 0) goto noValueForOption;
-       session->checkAlsa  = 1;
+       session->configsave  = 1;
        break;
 
     case SET_UID:
        if (optarg != 0) goto noValueForOption;
-       if (!sscanf (optarg, "%d", &session->config->setuid)) goto notAnInteger;
+       if (!sscanf (optarg, "%d", &cliconfig.setuid)) goto notAnInteger;
        break;
 
     case SET_FORGROUND:
@@ -341,23 +374,35 @@ int main(int argc, char *argv[])  {
        session->background  = 1;
        break;
 
-     case SET_KILL_PREVIOUS:
+     case KILL_PREV_REST:
        if (optarg != 0) goto noValueForOption;
        session->killPrevious  = 1;
        break;
-       
+
+     case KILL_PREV_EXIT:
+       if (optarg != 0) goto noValueForOption;
+       session->killPrevious  = 2;
+       break;
+
     case DISPLAY_VERSION:
        if (optarg != 0) goto noValueForOption;
        printVersion();
-       return (0);
+       goto normalExit;
 
     case DISPLAY_HELP:
      default:
        printHelp(programName);
-       return (0);
+       goto normalExit;
+
+    case CHECK_ALSA_CARDS:
+       probeAlsa (session);
+       goto normalExit;
 
     }
   }
+
+  // Create session config
+  configInit (/* session & config are initialized globally */);
 
   // ------------------ sanity check ----------------------------------------
   if  ((session->background) && (session->foreground)) {
@@ -367,56 +412,6 @@ int main(int argc, char *argv[])  {
 
   // ------------------ Some useful default values -------------------------
   if  ((session->background == 0) && (session->foreground == 0)) session->foreground=1;
-
-  if (session->config->httpdPort    == 0) session->config->httpdPort=1234;
-
-  // cache timeout is an interger but http header need a string.
-  if (cacheTimeout == 0) cacheTimeout=1234;
-  snprintf (session->config->cacheTimeout, sizeof (session->config->cacheTimeout), "%d", cacheTimeout);
-
-  if (session->config->rootdir == NULL) {
-     session->config->rootdir = malloc (512);
-     getcwd(session->config->rootdir, 512);
-     strncat (session->config->rootdir, "/public",512);
-
-     if (verbose) fprintf (stderr, "rootdir=%s",session->config->rootdir );
-  }
-
-
-  // ------------------ Probe for Alsa Board and exit -------------------------------
-  if (session->checkAlsa) {
-     AJG_request request;
-     json_object *sndcards =  alsaFindCards(session, &request);
-     json_object *sndcard, *slot;
-     int index, idx, length;
-     char const *uid, *name, *info;
-
-     memset (&request,0,sizeof (request));
-     length = json_object_array_length (sndcards);
-     fprintf (stderr,"\n---- Check Alsa [%d] cards ------\n", length);
-
-     // scan through json object [note json object are not really design for this, but nice to check json structure before exporting them ]
-     for (idx=0; idx < length; idx++) {
-        sndcard = json_object_array_get_idx(sndcards, idx);
-
-        json_object_object_get_ex (sndcard, "index", &slot);
-        index = json_object_get_int (slot);
-
-        json_object_object_get_ex (sndcard, "uid", &slot);
-        uid = json_object_get_string (slot);
-
-        json_object_object_get_ex (sndcard, "name", &slot);
-        name = json_object_get_string (slot);
-
-        json_object_object_get_ex (sndcard, "info", &slot);
-        info = json_object_get_string (slot);
-
-        fprintf (stderr, " + %-2d uid=%-5s name:%-25s [%s]\n", index, uid, name, info);
-
-     }
-     fprintf (stderr,"---- Check Alsa Done ------");
-     goto normalExit;
-  }
 
 
   // open syslog if ever needed
@@ -446,6 +441,8 @@ int main(int argc, char *argv[])  {
          if (status != 0)  fprintf (stderr, "%s ERR:main failled to killed pid=%d \n",configTime(), pid);
       }
     } // end switch pid
+
+    if (session->killPrevious >= 2) goto normalExit;
   } // end killPrevious
 
 
@@ -469,23 +466,31 @@ int main(int argc, char *argv[])  {
 
 
   // ------------------ Finaly Process Commands -----------------------------
-  fprintf (stderr, "AlsaJson: Process init commands\n");
-   if (session->config->setuid) {
-     int err;
 
-     err = setuid(session->config->setuid);
-     if (err) error ("Fail to change program uid error=%d", snd_strerror(err));
-   }
+   // if exist merge config file with CLI arguments
+   configLoadFile  (session, &cliconfig);
 
-   // check session dir and create if it does not exist
-   if (sessionCheckdir (session) != 0) goto errSessiondir;
+   // if --save then store config on disk upfront
+   if (session->configsave) configStoreFile (session);
+
+    fprintf (stderr, "AlsaJson: Process init commands\n");
+    if (session->config->setuid) {
+        int err;
+
+        err = setuid(session->config->setuid);
+        if (err) error ("Fail to change program uid error=%d", snd_strerror(err));
+    }
+
+    // let's not take the risk to run as ROOT
+    if (getuid == 0)  setuid(65534);  // run as nobody
+
+    // check session dir and create if it does not exist
+    if (sessionCheckdir (session) != AJG_SUCCESS) goto errSessiondir;
 
 
-  // let's not take the risk to run as ROOT
-  if (getuid == 0)  setuid(65534);  // run as nobody
 
-  // ---- run in foreground mode --------------------
-  if (session->foreground) {
+    // ---- run in foreground mode --------------------
+    if (session->foreground) {
 
     if (verbose) fprintf (stderr,"AlsaJson: Keeping foreground mode\n");
     
@@ -571,10 +576,6 @@ errorFork:
 
 errorCommand:
   fprintf (stderr,"\nERR:main Failled to send/get command \n\n");
-  exit (-1);
-
-invalidConfig:
-  fprintf (stderr,"\nERR:main Failed to parse config file [%s]\n\n",session->config->confname);
   exit (-1);
 
 invalidDisplay:

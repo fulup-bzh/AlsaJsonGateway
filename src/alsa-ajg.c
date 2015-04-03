@@ -44,7 +44,7 @@ PUBLIC json_object * alsaProbeCard (AJG_session *session, AJG_request *request) 
 	  sprintf(cardName, "hw:%d", request->sndcard);
 
 	  if ((err = snd_ctl_open(&handle, cardName, 0)) < 0) {
-		 return FATAL;
+		 return (void*)AJG_FATAL;
 	  }
 
 	  if ((err = snd_ctl_card_info(handle, cardinfo)) < 0) {
@@ -86,8 +86,8 @@ PUBLIC json_object * alsaFindCards (AJG_session *session, AJG_request *request) 
           // probe card from its number
           request->sndcard = card;
           sndcard = alsaProbeCard (session, request);
-          if (sndcard == NULL)  continue;
-          if (sndcard == FATAL) break;
+          if (sndcard == NULL)         continue;
+          if (sndcard == (void*)AJG_FATAL) break;
 
           // add current sndcard to sndcards object
           json_object_array_add (sndcards, sndcard);
@@ -343,9 +343,9 @@ STATIC json_object * getAlsaControl (snd_hctl_elem_t *elem, snd_ctl_elem_info_t 
     // build a json object out of element
     jsonAlsaCtrl = json_object_new_object(); // http://alsa-lib.sourcearchive.com/documentation/1.0.24.1-3/group__Control_ga4e4f251147f558bc2ad044e836e449d9.html
     json_object_object_add (jsonAlsaCtrl,"numid", json_object_new_int(snd_ctl_elem_id_get_numid (elemid)));
-    json_object_object_add (jsonAlsaCtrl,"iface", json_object_new_string(snd_ctl_elem_iface_name(snd_ctl_elem_id_get_interface(elemid))));
-    json_object_object_add (jsonAlsaCtrl,"name" , json_object_new_string(snd_ctl_elem_id_get_name (elemid)));
-    json_object_object_add (jsonAlsaCtrl,"actif", json_object_new_boolean(!snd_ctl_elem_info_is_inactive(info)));
+    if (request->quiet < 2) json_object_object_add (jsonAlsaCtrl,"name" , json_object_new_string(snd_ctl_elem_id_get_name (elemid)));
+    if (request->quiet < 1) json_object_object_add (jsonAlsaCtrl,"iface", json_object_new_string(snd_ctl_elem_iface_name(snd_ctl_elem_id_get_interface(elemid))));
+    if (request->quiet < 3)json_object_object_add (jsonAlsaCtrl,"actif", json_object_new_boolean(!snd_ctl_elem_info_is_inactive(info)));
 
     elemtype = snd_ctl_elem_info_get_type(info);
 
@@ -496,7 +496,7 @@ PUBLIC json_object *alsaFindControls(AJG_session *session, AJG_request *request)
 
         if ((err = snd_hctl_elem_info(elem, info)) < 0) {
 			error("Control %s snd_hctl_elem_info error: %s\n", uidcard, snd_strerror(err));
-			return FATAL;
+			return (void*)AJG_FATAL;
 		}
 
         // each control is added into a JSON array
@@ -592,4 +592,5 @@ PUBLIC json_object *alsaDownloadSession (AJG_session *session, AJG_request *requ
 }
 
 PUBLIC json_object *alsaUploadSession (AJG_session *session, AJG_request *request, json_object  *jsonSession) {
+
 }

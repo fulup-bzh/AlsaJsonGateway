@@ -56,15 +56,11 @@ static  json_object * Request2Commands = NULL;
 #define SESSION_STORE  8
 #define SESSION_LOAD   9
 
-// some usefull static object initialized when entering listen loop.
-static json_object *AJG_JSON_TYPE;
-static json_object *AJG_JSON_TRUE;
-static json_object *AJG_JSON_FALSE;
-
+static int rqtcount;  // dummy request rqtcount to make each message be different
 
 // use json lib hash table capabilities to handle command parsing
 STATIC void initService (AJG_session *session) {
-
+    rqtcount = 0;
     Request2Commands = json_object_new_object();
 
     json_object_object_add(Request2Commands, "ping-get"     , json_object_new_int (GATEWAY_PING));
@@ -76,28 +72,26 @@ STATIC void initService (AJG_session *session) {
     json_object_object_add(Request2Commands, "session-list" , json_object_new_int (SESSION_LIST));
     json_object_object_add(Request2Commands, "session-store", json_object_new_int (SESSION_STORE));
     json_object_object_add(Request2Commands, "session-load" , json_object_new_int (SESSION_LOAD));
-
 }
 
 STATIC  json_object *gatewayPing (void) {
-    static int count;
-
-    json_object * pingJson = json_object_new_object();
-	json_object_object_add (pingJson, "ping", json_object_new_int (count++));
-
+    json_object * pingJson = jsonNewMessage (AJG_SUCCESS,"count=%d", rqtcount);
     return (pingJson);
 }
 
 // process rest API query
 STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, const char *method) {
-  static int count;
   const char  *query, *param;
   json_object *cmd;
   int sndcard, done, ret;
   json_object *jsonResponse, *sndcardJ;
   struct MHD_Response  *response;
   AJG_request request;
+  const char *serialized;
 
+  // clean up session
+  memset (&request, 0, sizeof (request));
+  rqtcount++;
 
   // process POST method
   if (0 == strcmp (method, MHD_HTTP_METHOD_POST)) {
@@ -111,13 +105,9 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
       query = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "request");
   // ignore any other methods
   } else return MHD_NO;
-  
-  if (query == NULL) goto invalidRequest;
-
-  // clean up session
-  memset (request, 0, sizeof (request));
 
   // extract command value from json object and process it
+  if (query == NULL) goto invalidRequest;
   done=json_object_object_get_ex (Request2Commands, query, &cmd);
 
   request.sndcard = -1; // no default card
@@ -144,14 +134,14 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
   	case SESSION_LOAD: { // http://localhost:1234/jsonapi?request=session-load&args=sessionname
   	   json_object *jsonSession;
 
-       if (verbose)  fprintf (stderr, "%d: alsajson SESSION_LOAD card=%d\n", count ++, request.sndcard );
+       if (verbose)  fprintf (stderr, "%d: alsajson SESSION_LOAD card=%d\n", rqtcount ++, request.sndcard );
        if (!request.sndcard < 0) goto invalidRequest;
 
        jsonSession = sessionFromDisk (session, &request);               // get session from disk
        if (jsonSession != NULL) {
            alsaUploadSession (session, &request, jsonSession);          // push session to alsa board
            jsonResponse =    alsaDownloadSession(session, &request);    // we return effective date from sound board
-           json_object_put   (jsonSession);                             // decrease reference count to free the json object
+           json_object_put   (jsonSession);                             // decrease reference rqtcount to free the json object
        }
        break;
    	}
@@ -159,7 +149,7 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
   	case SESSION_STORE: {// http://localhost:1234/jsonapi?request=session-store&sndcard=2&args=sessionname
   	  json_object *jsonSession;
 
-      if (verbose)  fprintf (stderr, "%d: alsajson SESSION_STORE card=%d session=%d\n", count ++, request.sndcard, request.args );
+      if (verbose)  fprintf (stderr, "%d: alsajson SESSION_STORE card=%d session=%d\n", rqtcount ++, request.sndcard, request.args );
       if (request.sndcard < 0 || request.args  == NULL) goto invalidRequest;
 
       jsonSession = alsaDownloadSession (session, &request);            // push session to alsa board
@@ -170,87 +160,70 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
    	}
 
   	case GATEWAY_PING: // http://localhost:1234/jsonapi?request=ping-get [&sndcard=0]
-  	    if (verbose) fprintf (stderr, "%d: alsajson GATEWAY_PING\n", count++);
+  	    if (verbose) fprintf (stderr, "%d: alsajson GATEWAY_PING\n", rqtcount);
 
-        if (sndcard < 0)  jsonResponse = gatewayPing ();
+        if (request.sndcard < 0)  jsonResponse = gatewayPing ();
         else jsonResponse = alsaProbeCard (session, &request);
   	    break;
 
   	case CARD_GET_ALL: // http://localhost:1234/jsonapi?request=cards-get-all
-  	    if (verbose)  fprintf (stderr, "%d: alsajson CARD_GET_ALL\n", count ++);
+  	    if (verbose)  fprintf (stderr, "%d: alsajson CARD_GET_ALL\n", rqtcount ++);
   	    jsonResponse = alsaFindCards (session, &request);
   	    break;
 
   	case CARD_GET_ONE: // http://localhost:1234/jsonapi?request=cards-get-one&sendcard=0
-  	    if (verbose)  fprintf (stderr, "%d: alsajson CARD_GET_ONE card=%d\n", count ++, request.sndcard );
+  	    if (verbose)  fprintf (stderr, "%d: alsajson CARD_GET_ONE card=%d\n", rqtcount ++, request.sndcard );
    	    if (request.sndcard < 0) goto invalidRequest;
   	    jsonResponse = alsaFindCards (session, &request);
   	    break;
 
   	case CTRL_GET_ALL: // http://localhost:1234/jsonapi?request=ctrl-get-all&sndcard=0
-  	    if (verbose)  fprintf (stderr, "%d: alsajson CTRL_GET_ALL\n", count ++);
+  	    if (verbose)  fprintf (stderr, "%d: alsajson CTRL_GET_ALL\n", rqtcount ++);
    	    if (request.sndcard < 0) goto invalidRequest;
   	    jsonResponse = alsaFindControls (session, &request);
   	    break;
 
   	case CTRL_GET_ONE: // http://localhost:1234/jsonapi?request=ctrls-get-one&sndcard=2&numid=5&quiet=0
-  	    if (verbose)  fprintf (stderr, "%d: alsajson CTRL_GET_ONE card=%d numid=%d\n", count ++, request.sndcard ,request.numid);
+  	    if (verbose)  fprintf (stderr, "%d: alsajson CTRL_GET_ONE card=%d numid=%d\n", rqtcount ++, request.sndcard ,request.numid);
     	if (request.sndcard < 0 || request.numid < 0) goto invalidRequest;
         jsonResponse = alsaFindControls (session, &request);
  	    break;
 
   	case CTRL_SET_ONE: {// http://localhost:1234/jsonapi?request=ctrls-set-one&sndcard=2&quiet=1&numid=128&args='10 5'
-  	    if (verbose)  fprintf (stderr, "%d: alsajson processing CTRL_SET_ONE card=%d numid=%d\n", count ++, request.sndcard ,request.numid);
+  	    if (verbose)  fprintf (stderr, "%d: alsajson processing CTRL_SET_ONE card=%d numid=%d\n", rqtcount ++, request.sndcard ,request.numid);
     	if (request.sndcard < 0 || request.args == NULL ||  request.numid < 0) goto invalidRequest;
         jsonResponse = alsaSetControls (session, &request);
  	    break;
  	    }
 
   	default:
-  	   if (verbose)  fprintf (stderr, "%d: alsajson Unknown Request request=%s card=%d numid=%d\n", count ++, query, request.sndcard ,request.numid);
   	   goto invalidRequest;
    }
 
 
-   // process application responses
-   if (jsonResponse == FATAL) goto invalidRequest;
+   // send response to client with a http AJG_SUCCESS status code
+   // [note we need to copy serialize object because libmicrohttpd does not provide adequate free callback
+   serialized = json_object_to_json_string(jsonResponse);
+   response = MHD_create_response_from_buffer (strlen (serialized), (void*)serialized, MHD_RESPMEM_MUST_COPY);
 
-   // encapsulate API response on an AJG object
-   {
-       json_object *ajgResponse = json_object_new_object();
-       const char *serialized;
-       json_object_object_add (ajgResponse, "type" , AJG_JSON_TYPE);
+    ret = MHD_queue_response (connection, MHD_HTTP_OK, response);
+    MHD_destroy_response (response);
+    json_object_put (jsonResponse); // decrease reference rqtcount to free the json object
+    return ret;
 
-       if (jsonResponse == NULL) {  // empty valid response
-          json_object_object_add (ajgResponse, "data" , AJG_JSON_FALSE);
-       } else {
-          json_object_object_add (ajgResponse, "data" , jsonResponse);
-       }
+invalidRequest: { // send response to client with a http ERROR status code
 
-       // return json object to client [note we need to copy serialize object because libmicrohttpd does not provide adequate free callback
-       serialized = json_object_to_json_string(ajgResponse);
-       response = MHD_create_response_from_buffer (strlen (serialized), (void*)serialized, MHD_RESPMEM_MUST_COPY);
+    json_object *ajgMessage = jsonNewMessage (AJG_FATAL
+        , "Invalid/Unknown Request:%d Query=%s SndCard=%d NumId=%d", rqtcount ++, query, request.sndcard ,request.numid);
 
-        ret = MHD_queue_response (connection, MHD_HTTP_OK, response);
-        MHD_destroy_response (response);
-        json_object_put (jsonResponse); // decrease reference count to free the json object
-        return ret;
+    serialized = json_object_to_json_string(ajgMessage);
+    response = MHD_create_response_from_buffer (strlen (serialized), (void*)serialized, MHD_RESPMEM_MUST_COPY);
+
+    ret = MHD_queue_response (connection, MHD_HTTP_BAD_REQUEST, response);
+    MHD_destroy_response (response);
+    json_object_put (jsonResponse); // decrease reference rqtcount to free the json object
+    return ret;
     }
-
-
-invalidRequest:
-          fprintf (stderr, "%d: alsajson Unknown/Invalid API/Card query=%s\n", count ++, query);
-          const char *errorstr = "<html><body>Alsa-Json-Gateway Invalid/Unknown Request</body></html>";
-          response = MHD_create_response_from_buffer (strlen (errorstr),
-                           (void *) errorstr,	 MHD_RESPMEM_PERSISTENT);
-          if (response) {
-              ret = MHD_queue_response (connection, MHD_HTTP_INTERNAL_SERVER_ERROR, response);
-              MHD_destroy_response (response);
-              ret= MHD_YES;
-          } else {
-              ret= MHD_NO;
-          }
-          return ret;
 }
 
 // Create check etag value
@@ -326,14 +299,14 @@ STATIC requestFile (struct MHD_Connection *connection, AJG_session *session, con
                 close (fd); // file did not change since last upload
                 if (verbose) fprintf (stderr, "Not Modify: [%s]\n", filepath);
                 response = MHD_create_response_from_buffer (0,"", MHD_RESPMEM_PERSISTENT);
-                MHD_add_response_header (response,MHD_HTTP_HEADER_CACHE_CONTROL, session->config->cacheTimeout); // default one hour cache
+                MHD_add_response_header (response,MHD_HTTP_HEADER_CACHE_CONTROL, session->cacheTimeout); // default one hour cache
                 MHD_add_response_header (response,MHD_HTTP_HEADER_ETAG, etagValue);
                 ret = MHD_queue_response (connection, MHD_HTTP_NOT_MODIFIED, response);
 
             } else {  // it's a new file, we need to upload it to client
                 if (verbose) fprintf (stderr, "Serving: [%s]\n", filepath);
                 response =  MHD_create_response_from_fd (sbuf.st_size, fd);
-                MHD_add_response_header (response,MHD_HTTP_HEADER_CACHE_CONTROL,session->config->cacheTimeout); // default one hour cache
+                MHD_add_response_header (response,MHD_HTTP_HEADER_CACHE_CONTROL,session->cacheTimeout); // default one hour cache
                 MHD_add_response_header (response,MHD_HTTP_HEADER_ETAG, etagValue);
                 ret = MHD_queue_response (connection, MHD_HTTP_OK, response);
             }
@@ -344,11 +317,11 @@ STATIC requestFile (struct MHD_Connection *connection, AJG_session *session, con
 }
 
 STATIC int newRequest (void *cls,
-          struct MHD_Connection *connection,
-          const char *url,
-          const char *method,
-          const char *version,
-          const char *upload_data, size_t *upload_data_size, void **ptr) {
+  struct MHD_Connection *connection,
+  const char *url,
+  const char *method,
+  const char *version,
+  const char *upload_data, size_t *upload_data_size, void **ptr) {
 
   static int aptr;
   AJG_session *session = cls;
@@ -369,7 +342,7 @@ STATIC int newClient (void *cls, const struct sockaddr * addr, socklen_t addrlen
   return (MHD_YES); // MHD_NO
 }
 
-PUBLIC void* httpdStart (AJG_session *session) {
+PUBLIC AJG_ERROR httpdStart (AJG_session *session) {
 
   // at 1st call initialise http api hashtable
   if (Request2Commands == NULL) initService (session);
@@ -386,28 +359,24 @@ PUBLIC void* httpdStart (AJG_session *session) {
 
   if (session->httpd == NULL) {
      printf ("Error: httpStart invalid httpd port: %d", session->config->httpdPort);
-     return FATAL;
+     return AJG_FATAL;
   }
-
-  return SUCCESS;
+  return AJG_SUCCESS;
 }
 
 // infinit loop
-PUBLIC int httpdLoop (AJG_session *session) {
+PUBLIC AJG_ERROR httpdLoop (AJG_session *session) {
 
-    // init static constants
-    if (AJG_JSON_TYPE == NULL) {
-      AJG_JSON_TYPE  = json_object_new_string ("alsajson");
-      AJG_JSON_TRUE  = json_object_new_boolean (1);
-      AJG_JSON_FALSE = json_object_new_boolean  (0);
-    }
-
+    initService(session); // initialise http static data
 
     if (verbose) fprintf (stderr, "Httpd waiting loop\n");
     while (TRUE)  {
         fprintf (stderr, "Use Ctrl-C to quit");
         (void)getc (stdin);
     }
+
+    // should never return from here
+    return AJG_FATAL;
 }
 
 

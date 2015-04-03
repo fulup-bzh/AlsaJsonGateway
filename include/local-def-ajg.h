@@ -44,14 +44,25 @@ typedef int BOOL;
 #ifndef TRUE
   #define TRUE 1
 #endif
-#define STATUS  void*
-#define ERROR   -1
-#define FATAL   (void*)-1
-#define SUCCESS (void*)0
+
 #define PUBLIC
 #define STATIC    static
 #define MAX_SNDCARDS 5  // number of active Sound Cards
 
+
+// prebuild json error are constructed in config-ajg
+typedef enum  { AJG_FALSE, AJG_TRUE, AJG_FATAL, AJG_FAIL, AJG_WARNING, AJG_EMPTY, AJG_SUCCESS} AJG_ERROR;
+STATIC  char *ERROR_LABEL[]={"FALSE", "FALSE","FATAL", "FAIL", "WARNING", "EMPTY", "SUCCESS"};
+
+// Error code are requested through function to manage json usage count
+typedef struct {
+  int   level;
+  char* label;
+  json_object *json;
+} AJG_ErrorT;
+
+
+// some usefull static object initialized when entering listen loop.
 extern int verbose;
 
 typedef struct {
@@ -67,16 +78,16 @@ typedef struct {
 
   char *logname;           // logfile path for wx2000 info & error log
   char *console;           // console device name (can be a file or a tty)
-  char *confname;          // path to config file
 
   int  localhostOnly;
-  int  httpdPort;
+  int   httpdPort;
   char *rootdir;           // base dir for httpd file download
   char *pidfile;           // where to store pid when running background
   char *sessiondir;        // where to store mixer session files
+  char *configfile;        // where to store configuration on gateway exit
   uid_t setuid;
 
-  char cacheTimeout [5];
+  int  cacheTimeout;
 
 } AJG_config;
 
@@ -107,7 +118,9 @@ typedef struct {
   int  foreground;        // run in forground mode
   int  debugLevel;        // 0-9
   int  checkAlsa;         // Display active Alsa Board
+  int  configsave;        // Save config on disk on start
 
+  char *cacheTimeout;     // http require timeout to be a string
 
   void *httpd;            // anonymous structure for httpd handler
 } AJG_session;

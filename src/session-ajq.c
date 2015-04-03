@@ -32,16 +32,9 @@
 
 
 // verify we can read/write in session dir
-PUBLIC int sessionCheckdir (AJG_session *session) {
+PUBLIC AJG_ERROR sessionCheckdir (AJG_session *session) {
 
    int err;
-
-   // if no session dir create a default path from rootdir
-   if  (session->config->sessiondir == NULL) {
-        session->config->sessiondir = malloc (512);
-        strncpy (session->config->sessiondir, session->config->rootdir, 512);
-        strncat (session->config->sessiondir, "/sessions",512);
-   }
 
 
    // in case session dir would not exist create one
@@ -55,14 +48,13 @@ PUBLIC int sessionCheckdir (AJG_session *session) {
      return err;
    }
 
-
    // verify we can write session in directory
    json_object *dummy= json_object_new_object();
    json_object_object_add (dummy, "checked"  , json_object_new_int (getppid()));
-   err = json_object_to_file ("./checked.probe", dummy);
+   err = json_object_to_file ("./AJG-probe.json", dummy);
    if (err < 0) return err;
 
-   return 0;
+   return AJG_SUCCESS;
 }
 
 // let's return only sessions files
@@ -71,16 +63,15 @@ STATIC int fileSelect (const struct dirent *entry) {
 }
 
 // create a session in current directory
-PUBLIC json_object * sessionList (AJG_session *session) {
-    json_object *sessionsJ;
+PUBLIC json_object *sessionList (AJG_session *session) {
+    json_object *sessionsJ, *ajgResponse;
     struct stat fstat;
     struct dirent **namelist;
     int    count;
 
     count = scandir(session->config->sessiondir, &namelist, fileSelect, alphasort);
     if (count < 0) {
-        fprintf(stderr,"AlsaJson: Fail to scan sessions directory\n");
-        return (FATAL);
+        return (jsonNewMessage (AJG_FATAL,"Fail to scan sessions directory", session->config->sessiondir));
     }
 
     if (count == 0) return NULL;
@@ -105,7 +96,14 @@ PUBLIC json_object * sessionList (AJG_session *session) {
 
     // free scandir structure
     free(namelist);
-    return (sessionsJ);
+
+    // everything is OK let's build final response
+    ajgResponse = json_object_new_object();
+    json_object_object_add (ajgResponse, "ajgtype"   , jsonNewAjgType());
+    json_object_object_add (ajgResponse, "status" , jsonNewError(AJG_SUCCESS));
+    json_object_object_add (ajgResponse, "data"   , sessionsJ);
+
+    return (ajgResponse);
 }
 
 // push Json session object to disk
@@ -116,22 +114,24 @@ PUBLIC json_object * sessionToDisk (AJG_session *session, AJG_request *request, 
    struct tm * timeinfo;
    int err;
 
-   if (AJG_JSON_DONE == NULL) AJG_JSON_DONE  = json_object_new_string ("done");
-
    // add file extention to session name
    strncpy (filename, request->args, sizeof(filename));
    strncat (filename, ".ajg", sizeof(filename));
 
+
+   json_object_object_add(jsonSession, "ajgtype", json_object_new_string ("AJG_session"));
+
    // add a timestamp and store session on disk
    time ( &rawtime );  timeinfo = localtime ( &rawtime );
+   // A copy of the string is made and the memory is managed by the json_object
    json_object_object_add (jsonSession, "timestamp", json_object_new_string (asctime (timeinfo)));
 
    err = json_object_to_file (filename, jsonSession);
-   json_object_put   (jsonSession);          // decrease reference count to free the json object
+   json_object_put   (jsonSession);    // decrease reference count to free the json object
 
    // if OK we do not return anything
-   if (err < 0) return FATAL;
-   return AJG_JSON_DONE;
+   if (err < 0) return jsonNewMessage (AJG_FATAL,"Fail save session = [%s] to disk", filename);
+   return jsonNewMessage (AJG_SUCCESS,"Session= [%s] saved on disk", filename);
 }
 
 // push Json session object to disk
@@ -143,5 +143,3 @@ PUBLIC json_object *sessionFromDisk (AJG_session *session, AJG_request *request)
 
    return jsonSession;
 }
-
-
