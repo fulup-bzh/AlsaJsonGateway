@@ -1,7 +1,11 @@
 
-      alsa-json-gateway
 
-* Object: provides an HTTP REST interface to ALSA mixer for HTML5 UI support
+alsa-json-gateway
+
+
+Provides an HTTP REST interface to ALSA mixer for HTML5 UI support. The main objective of AJG is to decouple ALSA from UI, this especially for Music Oriented Sound boards like Scarlett Focurite and others.
+
+
 * Author: Fulup Ar Foll http://breizhme.net/en/author
 * Demo:   http://breizhme.net/alsajson
 
