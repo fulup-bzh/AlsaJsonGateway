@@ -22,17 +22,18 @@ Supported features
 
 Building [Linux Only]
 
-    #download and expend alsa-json-gateway archive from github
-    #install dependencies [should be available in any distributions, eventually under different names]
-       1: alsa-dev
-       2: libmicrohttpd-dev
-       3: json-c-dev
+    1) download and expend alsa-json-gateway archive from github
 
-    cd src; make;   # Alpha version does not have installation process.
+    2) install dependencies [should be available in any distributions, eventually under different names]
+       a: alsa-dev
+       b: libmicrohttpd-dev
+       c: json-c-dev
+
+    3) cd src; make;   # Alpha version does not have installation process.
 
 Starting alsa-json-gateway
 
-      export AJW_DIR=$HOME/AJW; mkdir -p $AJW_DIR/sessions
+      export AJW_DIR=$HOME/AJW; mkdir $AJW_DIR
       ./built/alsajson-gw --help                                                        # get options
       ./built/alsajson-gw --rootdir=$AJW_DIR --verbose --port=1234                      # run foreground in verbose mode
       ./built/alsajson-gw --config=$AJW_DIR/AJG-config.json --rootdir=AJW_DIR  --save   # run save config
@@ -40,6 +41,7 @@ Starting alsa-json-gateway
       ./built/alsajson-gw --config=AJW_DIR/AJG-config.json  --kill                      # kill current AJG daemon
 
 REST API
+
      - GATEWAY_PING: #! ping AlsaJson gateway   ## amixer -c0 cget numid=first
            http://localhost:1234/jsonapi?request=ping-get
            http://localhost:1234/jsonapi?request=ping-get&sndcard=0
