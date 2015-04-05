@@ -19,8 +19,8 @@ coverage
 .grunt
 
 # Compiled binary addons (http://nodejs.org/api/addons.html)
-!built/
 built/**
+!built
 
 # Dependency directory
 # Commenting this out is preferred by some people, see
