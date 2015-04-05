@@ -1,7 +1,7 @@
 #
 # http Makefile
 #
-#  on most Linux typing "make install" should be enough
+#  on Linux typing "make install" should be enough
 # -----------------------------------------------------
 
 VERSION=0.1
