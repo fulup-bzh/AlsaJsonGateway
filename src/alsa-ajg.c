@@ -48,12 +48,12 @@ PUBLIC json_object * alsaProbeCard (AJG_session *session, AJG_request *request) 
 	  sprintf(cardName, "hw:%d", request->sndcard);
 
 	  if ((err = snd_ctl_open(&handle, cardName, 0)) < 0) {
-		 return  jsonNewMessage (AJG_FATAL, "Control device %s hw not found: %s", cardName, snd_strerror(err));
+		 return  jsonNewMessage (AJG_EMPTY, "SndCard %s Not Found", cardName);
 	  }
 
 	  if ((err = snd_ctl_card_info(handle, cardinfo)) < 0) {
 		  snd_ctl_close(handle);
-		  return  jsonNewMessage (AJG_FAIL, "Control device %s hw info error: %s", cardName, snd_strerror(err));
+		  return  jsonNewMessage (AJG_FAIL, "SndCard %s info error: %s", cardName, snd_strerror(err));
 	  }
 
 	  sndcard = json_object_new_object();

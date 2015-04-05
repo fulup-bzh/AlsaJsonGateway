@@ -140,7 +140,7 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
   	    jsonResponse = alsaFindCard (session, &request); // sndcard = -1
   	    break;
 
-  	case CARD_GET_ONE: // http://localhost:1234/jsonapi?request=card-get-one&sendcard=0
+  	case CARD_GET_ONE: // http://localhost:1234/jsonapi?request=card-get-one&sndcard=0
   	    if (verbose)  fprintf (stderr, "%d: alsajson CARD_GET_ONE card=%d\n", rqtcount ++, request.sndcard );
    	    if (request.sndcard < 0) goto invalidRequest;
   	    jsonResponse = alsaFindCard (session, &request);

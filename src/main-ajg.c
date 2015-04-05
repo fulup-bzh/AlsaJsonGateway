@@ -58,11 +58,11 @@ static  AJG_options cliOptions [] = {
   {SET_VERBOSE      ,0,"verbose"         , "Verbose Mode"},
 
   {SET_FORGROUND    ,0,"foreground"      , "Get all in foreground mode"},
-  {SET_BACKGROUND   ,0,"background"      , "Get all in background mode"},
+  {SET_BACKGROUND   ,0,"daemon"          , "Get all in background mode"},
   {KILL_PREV_EXIT   ,0,"kill"            , "Kill active process if any and exit"},
-  {KILL_PREV_REST   ,0,"restart"        , "Kill active process if any and restart"},
+  {KILL_PREV_REST   ,0,"restart"         , "Kill active process if any and restart"},
 
-  {SET_TCP_PORT     ,1,"httpdport"       , "HTTP listening TCP port  [default 1234]"},
+  {SET_TCP_PORT     ,1,"port"            , "HTTP listening TCP port  [default 1234]"},
   {SET_ROOT_DIR     ,1,"rootdir"         , "HTTP Root Directory [default $PWD/public"},
   {SET_CACHE_TO     ,1,"cache-eol"       , "Client cache end of live [default 3600s]"},
   {SET_UID          ,1,"setuid"          , "Change user id [default don't change]"},
@@ -71,7 +71,7 @@ static  AJG_options cliOptions [] = {
   {SET_CONFIG_FILE  ,1,"config"          , "Config Filename [default rootdir/sessions/configs/default.ajg]"},
   {SET_CONFIG_SAVE  ,0,"save"            , "Save config on disk [default no]"},
 
-  {SET_LOCAL_ONLY   ,0,"localhost"       , "Restric client to localhost"},
+  //  {SET_LOCAL_ONLY   ,0,"localhost"       , "Restric client to localhost"},
   {CHECK_ALSA_CARDS ,0,"checkalsa"       , "List Alsa Sound Card"},
 
   {DISPLAY_VERSION  ,0,"version"         , "Display version and copyright"},
@@ -124,7 +124,7 @@ void signalFail (int signum) {
    fprintf(stderr,"Copyright (C) 2015 Fulup Ar Foll (fulup@breizhme.net)\n");
    fprintf(stderr,"alsajson-gw comes with ABSOLUTELY NO WARRANTY. This is a free software,\n");
    fprintf (stderr,"--------------------------------------------------------------- \n");
-   
+
  } // end printVersion
 
 /*----------------------------------------------------------
@@ -227,7 +227,7 @@ static void listenLoop (AJG_session *session) {
   if (session->config->httpdPort > 0) {
 
        // if no rootdir let's use current dir
-       if (session->config->rootdir == NULL) session->config->rootdir= getcwd(NULL,0);
+       if (session->config->rootdir == NULL) session->config->rootdir=getcwd(NULL,0);
 
         err = httpdStart (session);
         if (err != AJG_SUCCESS) return;
@@ -476,7 +476,6 @@ int main(int argc, char *argv[])  {
    // if --save then store config on disk upfront
    if (session->configsave) configStoreFile (session);
 
-    fprintf (stderr, "AJG: Process init commands\n");
     if (session->config->setuid) {
         int err;
 
@@ -489,13 +488,14 @@ int main(int argc, char *argv[])  {
 
     // check session dir and create if it does not exist
     if (sessionCheckdir (session) != AJG_SUCCESS) goto errSessiondir;
+    if (verbose) fprintf (stderr, "AJG: Init config done\n");
 
 
 
     // ---- run in foreground mode --------------------
     if (session->foreground) {
 
-        if (verbose) fprintf (stderr,"AJG: Keeping foreground mode\n");
+        if (verbose) fprintf (stderr,"AJG: Foreground mode\n");
 
         // write a pid file for --kill-previous and --raise-debug option
         status = writePidFile (session->config, getpid());
@@ -506,7 +506,7 @@ int main(int argc, char *argv[])  {
         goto exitInitLoop;
   } // end foreground
 
-  
+
   // --------- run in background mode -----------
   if (session->background) {
 
@@ -516,8 +516,8 @@ int main(int argc, char *argv[])  {
 
       // open /dev/console to redirect output messAJGes
       consoleFD = open(session->config->console, O_WRONLY | O_APPEND | O_CREAT , 0640);
-      if (consoleFD < 0) goto errConsole;      
- 
+      if (consoleFD < 0) goto errConsole;
+
       // fork process when running background mode
       pid = fork ();
 
@@ -540,7 +540,7 @@ int main(int argc, char *argv[])  {
          fprintf (stderr, "%s INF:main background pid=%d\n", configTime(), getpid());
          fflush  (stderr);
 
-         // if everything look OK then look forever    
+         // if everything look OK then look forever
          syslog (LOG_ERR, "AJG: Entering infinite loop in background mode");
 
          // should normally never return from this loop

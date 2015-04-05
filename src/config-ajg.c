@@ -60,9 +60,11 @@ PUBLIC AJG_ERROR configLoadFile (AJG_session * session, AJG_config *cliconfig) {
 
    // default HTTP port
    if (cliconfig->httpdPort == 0) session->config->httpdPort=1234;
+   else session->config->httpdPort=cliconfig->httpdPort;
 
    // cache timeout default one hour
    if (cliconfig->cacheTimeout == 0) session->config->cacheTimeout=3600;
+   else session->config->cacheTimeout=cliconfig->cacheTimeout;
 
    if (cliconfig->rootdir == NULL) {
        session->config->rootdir = malloc (512);
@@ -250,7 +252,7 @@ PUBLIC  json_object *jsonNewMessage (AJG_ERROR level, char* format, ...) {
    json_object_object_add (ajgResponse, "data"   , jsonNewError (AJG_FALSE));
    json_object_object_add (ajgResponse, "info"   , json_object_new_string (message));
    if (verbose) {
-        fprintf (stderr, "AJG:%s [%d]: ", AJG_Error [level].label, count++);
+        fprintf (stderr, "AJG:%s [%3d]: ", AJG_Error [level].label, count++);
         fprintf (stderr, message);
         fprintf (stderr, "\n");
    }

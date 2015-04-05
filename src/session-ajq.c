@@ -39,7 +39,6 @@ PUBLIC AJG_ERROR sessionCheckdir (AJG_session *session) {
 
    int err;
 
-
    // in case session dir would not exist create one
    if (verbose) fprintf (stderr, "AJG: Checking session dir [%s]\n", session->config->sessiondir);
    mkdir(session->config->sessiondir, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
