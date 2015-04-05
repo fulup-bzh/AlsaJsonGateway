@@ -10,7 +10,7 @@ DESDIR=/opt/alsa-json-gateway
 CCFLAGS=`pkg-config --cflags alsa libmicrohttpd json-c`
 LDFLAGS=`pkg-config --libs alsa libmicrohttpd json-c`
 
-CC= gcc -g -Wstrict-prototypes -Dhttp_VERSION=$(VERSION) -I../include $(CCFLAGS) -DAJQ_VERSION=$(VERSION)
+CC= gcc -Werror -g -Wstrict-prototypes -Dhttp_VERSION=$(VERSION) -I../include $(CCFLAGS) -DAJQ_VERSION=$(VERSION)
 LD= gcc -g $(LDFLAGS)
 DATE=`date +%d:%b:%y`
 BUILT=../built
@@ -28,6 +28,13 @@ $(BUILT)/alsajson-gw: $(OBJECTS)
 
 clean:
 	$(RM) http $(OBJECTS) core *~
+
+testmem: all
+	valgrind $(BUILT)/alsajson-gw --verbose --rootdir=$(HOME)/Documents/WorkSpace/AlsaJsonMixer/www --save
+
+debug: all
+	echo --verbose --rootdir=$(HOME)/Documents/WorkSpace/AlsaJsonMixer/www --save
+	gdb  $(BUILT)/alsajson-gw
 
 distrib: clean
 	cd .. ; rm -f http-$(VERSION); ln -s http-2.x http-$(VERSION)

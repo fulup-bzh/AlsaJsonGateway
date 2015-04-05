@@ -28,6 +28,8 @@
 #include "local-def-ajg.h"
 #include <stdarg.h>
 
+#define AJG_CONFIG_JTYPE "AJG_config"
+
 PUBLIC int verbose;
 STATIC AJG_ErrorT  AJG_Error [AJG_SUCCESS+1];
 STATIC json_object *ajgJsonType;
@@ -112,8 +114,8 @@ PUBLIC AJG_ERROR configLoadFile (AJG_session * session, AJG_config *cliconfig) {
 
    // check it is an AJG_config
    if (json_object_object_get_ex (ajgConfig, "ajgtype", &value)) {
-      if (strcmp ("AJG_config", json_object_get_string (value))) {
-         fprintf (stderr,"AJG: Error file [%s] is not a valid AGH_config type\n ", session->config->configfile);
+      if (strcmp (AJG_CONFIG_JTYPE, json_object_get_string (value))) {
+         fprintf (stderr,"AJG: Error file [%s] is not a valid [%s] type\n ", session->config->configfile, AJG_CONFIG_JTYPE);
          return AJG_FAIL;
       }
    }
@@ -147,7 +149,7 @@ PUBLIC AJG_ERROR configLoadFile (AJG_session * session, AJG_config *cliconfig) {
    }
    // cacheTimeout is an interger but HTTPd wants it as a string
    snprintf (cacheTimeout, sizeof (cacheTimeout),"%d", session->config->cacheTimeout);
-   session->cacheTimeout = session->config->cacheTimeout; // httpd uses cacheTimeout string version
+   session->cacheTimeout = cacheTimeout; // httpd uses cacheTimeout string version
    json_object_put   (ajgConfig);    // decrease reference count to free the json object
 
    return AJG_SUCCESS;
@@ -165,7 +167,7 @@ PUBLIC AJG_config* configStoreFile (AJG_session * session) {
    // add a timestamp and store session on disk
    time ( &rawtime );  timeinfo = localtime ( &rawtime );
    // A copy of the string is made and the memory is managed by the json_object
-   json_object_object_add (ajgConfig, "ajgtype"         , json_object_new_string ("AJG_config"));
+   json_object_object_add (ajgConfig, "ajgtype"         , json_object_new_string (AJG_CONFIG_JTYPE));
    json_object_object_add (ajgConfig, "timestamp"    , json_object_new_string (asctime (timeinfo)));
    json_object_object_add (ajgConfig, "rootdir"      , json_object_new_string (session->config->rootdir));
    json_object_object_add (ajgConfig, "sessiondir"   , json_object_new_string (session->config->sessiondir));
@@ -243,12 +245,12 @@ PUBLIC  json_object *jsonNewMessage (AJG_ERROR level, char* format, ...) {
    va_end(args);
 
    ajgResponse = json_object_new_object();
-   json_object_object_add (ajgResponse, "ajgtype"   , jsonNewAjgType ());
+   json_object_object_add (ajgResponse, "ajgtype", jsonNewAjgType ());
    json_object_object_add (ajgResponse, "status" , jsonNewError (level));
    json_object_object_add (ajgResponse, "data"   , jsonNewError (AJG_FALSE));
    json_object_object_add (ajgResponse, "info"   , json_object_new_string (message));
    if (verbose) {
-        fprintf (stderr, "%s [%d]: ", AJG_Error [level].label, count++);
+        fprintf (stderr, "AJG:%s [%d]: ", AJG_Error [level].label, count++);
         fprintf (stderr, message);
         fprintf (stderr, "\n");
    }
@@ -256,5 +258,13 @@ PUBLIC  json_object *jsonNewMessage (AJG_ERROR level, char* format, ...) {
    serialized = json_object_to_json_string(ajgResponse);
 
    return (ajgResponse);
+}
+
+// Dump a message on stderr
+PUBLIC void jsonDumpObject (json_object * jObject) {
+
+   if (verbose) {
+        fprintf (stderr, "AJG:dump [%s]\n", json_object_to_json_string(jObject));
+   }
 }
 

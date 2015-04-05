@@ -30,6 +30,10 @@
 #include "local-def-ajg.h"
 #include <alsa/asoundlib.h>
 
+#define AJG_ALSACTL_JTYPE "AJG_ctrls"
+#define AJG_SNDCARD_JTYPE "AJG_sndcard"
+#define AJG_SNDLIST_JTYPE "AJG_sndlist"
+
 // retreive info for one given card
 PUBLIC json_object * alsaProbeCard (AJG_session *session, AJG_request *request) {
       char  *info, *name, *uid;
@@ -44,58 +48,80 @@ PUBLIC json_object * alsaProbeCard (AJG_session *session, AJG_request *request) 
 	  sprintf(cardName, "hw:%d", request->sndcard);
 
 	  if ((err = snd_ctl_open(&handle, cardName, 0)) < 0) {
-		 return (void*)AJG_FATAL;
+		 return  jsonNewMessage (AJG_FATAL, "Control device %s hw not found: %s", cardName, snd_strerror(err));
 	  }
 
 	  if ((err = snd_ctl_card_info(handle, cardinfo)) < 0) {
-		  error("Control device %s hw info error: %s", cardName, snd_strerror(err));
 		  snd_ctl_close(handle);
-		  return NULL;
+		  return  jsonNewMessage (AJG_FAIL, "Control device %s hw info error: %s", cardName, snd_strerror(err));
 	  }
 
 	  sndcard = json_object_new_object();
+      json_object_object_add (sndcard, "ajgtype" ,json_object_new_string (AJG_SNDCARD_JTYPE));
 	  uid = strdup(cardName);
-      json_object_object_add (sndcard, "uid"  , json_object_new_string (uid));
+      json_object_object_add (sndcard, "uid"     , json_object_new_string (uid));
       name = strdup(snd_ctl_card_info_get_name (cardinfo));
-	  json_object_object_add (sndcard, "name" , json_object_new_string (name));
+      request->cardname = name; // save cardname for session management
+	  json_object_object_add (sndcard, "name"    , json_object_new_string (name));
 
 	  uid   = strdup(cardName);
 
 	  if (!request->quiet) {
 		  info  = strdup(snd_ctl_card_info_get_longname (cardinfo));
           json_object_object_add (sndcard, "info" , json_object_new_string (info));
-   	      if (verbose) fprintf (stderr, "alsaProbeCard uid=%s name=%s\n", uid, info);
+   	      if (verbose) fprintf (stderr, "AJG: Sound Card uid=%s name=%s\n", uid, info);
 	  }
 
-	  snd_ctl_close(handle);
+      // if requested keep track of sound probed handle
+      if (request->cardhandle) request->cardhandle = handle;
+      else snd_ctl_close(handle);
 	  return (sndcard);
 }
 
 // Loop on everypotential Sound card and register active one
-PUBLIC json_object * alsaFindCards (AJG_session *session, AJG_request *request) {
-      int  card;
-      json_object *sndcards =json_object_new_array();
+PUBLIC json_object * alsaFindCard (AJG_session *session, AJG_request *request) {
+	int  card;
+	json_object *sndcards, *element, *ajgResponse;
 
-      // if exist clean previous sndcards object
-      if (session->sndcards != NULL) json_object_put (session->sndcards);
+	// if no specific card requested loop on all
+	if (request->sndcard < 0) {
+	     // return an array of sndcard
+		 sndcards =json_object_new_array();
 
-      // loop on potential card number
-      for (card =0; card < 32; card++) {
-          json_object *sndcard;
+		 // loop on potential card number
+		 for (card =0; card < 32; card++) {
+			json_object *sndcard;
 
-          // probe card from its number
-          request->sndcard = card;
-          sndcard = alsaProbeCard (session, request);
-          if (sndcard == NULL)         continue;
-          if (sndcard == (void*)AJG_FATAL) break;
+			// probe card from its number
+			request->sndcard = card;
+			sndcard = alsaProbeCard (session, request);
 
-          // add current sndcard to sndcards object
-          json_object_array_add (sndcards, sndcard);
-      }
+			// If card probe fail to return UID check for status
+			if (!json_object_object_get_ex (sndcard, "uid", &element)) {
+				char *status;
+				json_object_object_get_ex (sndcard, "status", &element);
+				if (!strcmp (status, ERROR_LABEL[AJG_FATAL]))  break;
+				continue; // just ignore this entry
+			}
+			// add current sndcard to sndcards object
+			json_object_array_add (sndcards, sndcard);
+	   	 }
 
-   // keep track of sndcard object in case we need it ???
-   session->sndcards =  json_object_get(sndcards);
-   return (session->sndcards);
+	 } else {
+		 // only one card was requested let's probe it
+		 sndcards = alsaProbeCard (session, request);
+		 // If card probe fail to return UID check for status
+		 if (!json_object_object_get_ex (sndcards, "uid", &element)) {
+			return (sndcards);
+		 }
+	}
+
+    ajgResponse = json_object_new_object();
+    json_object_object_add (ajgResponse, "ajgtype" , json_object_new_string (AJG_SNDLIST_JTYPE));
+    json_object_object_add (ajgResponse, "status"  , jsonNewError(AJG_SUCCESS));
+    json_object_object_add (ajgResponse, "data"    , sndcards);
+
+   return (ajgResponse);
 }
 
 STATIC json_object *DB2StringJsonOject (long dB) {
@@ -451,8 +477,7 @@ STATIC json_object * getAlsaControl (snd_hctl_elem_t *elem, snd_ctl_elem_info_t 
    return (jsonAlsaCtrl);
 }
 
-
-PUBLIC json_object *alsaFindControls(AJG_session *session, AJG_request *request) {
+PUBLIC json_object *alsaGetControl (AJG_session *session, AJG_request *request) {
 	int err;
     int  count=0;
     char uidcard [6];
@@ -481,12 +506,10 @@ PUBLIC json_object *alsaFindControls(AJG_session *session, AJG_request *request)
 	}
 
 	if ((err = snd_hctl_open(&handle, uidcard, 0)) < 0) {
-		error("Control %s open error: %s", uidcard, snd_strerror(err));
-		return NULL;
+		return jsonNewMessage (AJG_FAIL,"Control %s open error: %s", uidcard, snd_strerror(err));
 	}
 	if ((err = snd_hctl_load(handle)) < 0) {
-		error("Control %s local error: %s\n", uidcard, snd_strerror(err));
-		return NULL;
+		return jsonNewMessage (AJG_FAIL,"Control %s local error: %s\n", uidcard, snd_strerror(err));
 	}
 
 	// create an json array to hold all sndcard controls
@@ -496,7 +519,7 @@ PUBLIC json_object *alsaFindControls(AJG_session *session, AJG_request *request)
 
         if ((err = snd_hctl_elem_info(elem, info)) < 0) {
 			error("Control %s snd_hctl_elem_info error: %s\n", uidcard, snd_strerror(err));
-			return (void*)AJG_FATAL;
+			return jsonNewMessage (AJG_FATAL,"Control %s snd_hctl_elem_info error: %s\n", uidcard, snd_strerror(err));
 		}
 
         // each control is added into a JSON array
@@ -506,6 +529,7 @@ PUBLIC json_object *alsaFindControls(AJG_session *session, AJG_request *request)
 	}
 
     // add controls json array to sndcard
+    json_object_object_add (jsonsndcard,"ajgtype", json_object_new_string (AJG_ALSACTL_JTYPE));
 	json_object_object_add (jsonsndcard,"controls", jsonAlsaCtrls);
 	snd_hctl_close(handle);
 
@@ -513,7 +537,7 @@ PUBLIC json_object *alsaFindControls(AJG_session *session, AJG_request *request)
 	return (json_object_get(jsonsndcard));
 }
 
-PUBLIC json_object *alsaSetControls(AJG_session *session, AJG_request *request) {
+PUBLIC json_object *alsaSetControl (AJG_session *session, AJG_request *request) {
     static json_object * okresponse =NULL;
 	int err;
 	snd_ctl_t *handle;
@@ -524,14 +548,19 @@ PUBLIC json_object *alsaSetControls(AJG_session *session, AJG_request *request) 
     char uidcard [6];
 
     // make standard response only once
-    if (okresponse == NULL) okresponse=json_tokener_parse("{status: done}");
+    if (okresponse == NULL) okresponse=jsonNewMessage (AJG_SUCCESS, "done");
 
     // open sound card with low level API as the other seems not stable enough
     /* FIXME: Remove it when hctl find works ok !!! */
     snprintf (uidcard, sizeof(uidcard),"hw:%i",request->sndcard);
     if (err = snd_ctl_open(&handle, uidcard, 0) < 0) {
-   		error("Control %s open error: %s\n", uidcard, snd_strerror(err));
-   		return NULL;
+   		response= jsonNewMessage (AJG_FAIL,"Control %s open error: %s\n", uidcard, snd_strerror(err));
+   		return response; // handle is invalid do not try to close it
+    }
+
+    if (request->args == NULL || request->numid < 0) {
+    	response= jsonNewMessage (AJG_FAIL,"setcontrol Card=%s NumId=%d no values missing &numid=xx&args='values'\n", request->cardname, request->numid);
+       	goto ExitNow;
     }
 
     /* FIXME: Remove it when hctl find works ok !!! */
@@ -541,27 +570,27 @@ PUBLIC json_object *alsaSetControls(AJG_session *session, AJG_request *request) 
     snd_ctl_elem_info_alloca(&info);
     snd_ctl_elem_info_set_id(info, id);
     if ((err = snd_ctl_elem_info(handle, info)) < 0) {
-   		error("Cannot find the given element from control %s\n", uidcard);
-   		goto OnErrorExit;
+   		response= jsonNewMessage (AJG_FAIL,"Cannot find the given element from control %s\n", uidcard);
+   		goto ExitNow;
     }
 
   	snd_ctl_elem_info_get_id(info, id);
 	snd_ctl_elem_value_alloca(&control);
     snd_ctl_elem_value_set_id(control, id);
 	if ((err = snd_ctl_elem_read(handle, control)) < 0) {
-   	    error("Cannot read the given element from control %s\n", uidcard);
-	    goto OnErrorExit;
+   	    response= jsonNewMessage (AJG_FAIL,"Cannot read the given element from control %s\n", uidcard);
+	    goto ExitNow;
 	}
 
     err = snd_ctl_ascii_value_parse(handle, control, info, request->args);
   	if (err < 0) {
-  	    error("Control %s fail to parse args=%s: %s\n", uidcard, request->args, snd_strerror(err));
-  	    goto OnErrorExit;
+  	    response= jsonNewMessage (AJG_FAIL,"Control %s fail to parse args=%s: %s\n", uidcard, request->args, snd_strerror(err));
+  	    goto ExitNow;
   	}
 
 	if ((err = snd_ctl_elem_write(handle, control)) < 0) {
-	   error("Control %s element write error: %s\n", uidcard, snd_strerror(err));
-  	   goto OnErrorExit;
+	   response= jsonNewMessage (AJG_FAIL,"Control %s element write error: %s\n", uidcard, snd_strerror(err));
+  	   goto ExitNow;
     }
 
     // in quiet mode we only return OK otherwise we request full value of modified control
@@ -569,28 +598,176 @@ PUBLIC json_object *alsaSetControls(AJG_session *session, AJG_request *request) 
         response = okresponse;
 	} else {
 	    // in verbose mode we return a modified controls
-	    if (session->sndcards == NULL) alsaFindCards (session, request);  // if not card handle in session scan them
-	    request->quiet=1; // make response short
-        response = alsaFindControls (session, request);
+  	    request->quiet=1; // make response short
+        response = alsaGetControl (session, request);
 	}
 
-	return (response);
+ExitNow:
+    snd_ctl_close(handle);
+	return response;
+}
+
+// Low level push one control values to sound card.
+// Warning: at this level we expect session file to be save and we write integer values without verification.
+STATIC AJG_ERROR alsaSetOneControl(AJG_session *session, AJG_request *request, json_object *ctrlnumid, json_object *ctrlvalue) {
+    static json_object *okresponse=NULL, *element;
+	int err, numid, value;
+	snd_ctl_elem_info_t *info;
+    snd_ctl_elem_id_t *myid;
+	snd_ctl_elem_value_t *control;
+	unsigned int index, count, length;
+
+    // extract NUMid and loop on values
+    numid = json_object_get_int (ctrlnumid);
+
+   	snd_ctl_elem_id_alloca(&myid);
+    snd_ctl_elem_id_set_numid (myid, numid);
+
+    snd_ctl_elem_info_alloca(&info);
+    snd_ctl_elem_info_set_id(info, myid);
+    if ((err = snd_ctl_elem_info(request->cardhandle, info)) < 0) {
+   		fprintf (stderr, "AJG: Fail numid=%2d unknown\n", numid);
+   		return AJG_FAIL;
+    }
+
+   	if (!snd_ctl_elem_info_is_writable(info)) {
+   	   if (verbose) fprintf (stderr,"AJG:info numid=%2d ignored [read only value]\n", numid);
+   	   return (AJG_EMPTY);
+   	}
+
+  	snd_ctl_elem_info_get_id(info, myid);
+	snd_ctl_elem_value_alloca(&control);
+    snd_ctl_elem_value_set_id(control, myid);
+	if ((err = snd_ctl_elem_read(request->cardhandle, control)) < 0) {
+   		fprintf (stderr, "AJG: Fail numid=%2d control error\n", numid);
+	    return AJG_FAIL;
+	}
+
+    // prepare structure to loop on pushing value to sound card
+    index = 0; // taken from ctrlparse.c
+   	count = snd_ctl_elem_info_get_count(info);
+   	snd_ctl_elem_value_set_id(control, myid);
+   	length = json_object_array_length (ctrlvalue);
+
+    // Loop on every value and push control to sndcard
+    for (index=0; index < count && index < length; index++) {
+        element = json_object_array_get_idx(ctrlvalue, index);
+        value= json_object_get_int (element);
+        snd_ctl_elem_value_set_integer(control, index, value);
+    }
+
+    // write array on disk
+    if ((err = snd_ctl_elem_write(request->cardhandle, control)) < 0) {
+	   fprintf (stderr,"AJG: Fail numid=%2d values=%s write error: %s\n", numid, json_object_to_json_string(ctrlvalue),snd_strerror(err));
+	   return AJG_FAIL;
+	}
+
+	return (AJG_SUCCESS);
+
+}
+
+// open sndcard to get its name and request existing session for this card
+PUBLIC json_object *alsaListSession (AJG_session *session, AJG_request *request) {
+   json_object *sndcard, *response, *element;
+   const char *cardname;
+
+   // open sndcard and get its name
+   sndcard = alsaProbeCard (session, request);
+   if (request->cardname == NULL) {
+       return (jsonNewMessage (AJG_FATAL,"Sound card [hw:%d] has not 'name' element", request->sndcard));
+   }
+
+   response = sessionList (session, request);
+   json_object_put (sndcard); // release sndcard json object
+   return (response);
+}
+
+// load a session for requested card
+PUBLIC json_object *alsaLoadSession (AJG_session *session, AJG_request *request) {
+   json_object *errorMsg, *jsonSession, *sndcard, *element, *cardinfo;
+   const char *sessionname,*cardname;
+   unsigned int index;
+
+   // probe soundcard to check it exist and get it name
+   request->cardhandle = (void*)TRUE; // request for not closing card handle
+   sndcard = alsaProbeCard (session, request);
+   if (request->cardname == NULL) {
+       errorMsg =  jsonNewMessage (AJG_FATAL,"Sound card [hw:%d] has no 'name' element", request->sndcard);
+  	   goto OnErrorExit;
+   }
+
+   // request session from disk [response is a valid json error or a valid session]
+   jsonSession = sessionFromDisk (session, request);
+
+   // search for sound card descriptor
+   if (!json_object_object_get_ex (jsonSession, "sndcard", &cardinfo)) {
+   		errorMsg = jsonSession;  json_object_get (jsonSession); // increase jsonsession usecount to keep it as error message
+   	    goto OnErrorExit;
+   }
+
+   // search for request->cardname with cardinfo descriptor
+   if (!json_object_object_get_ex (cardinfo, "name", &element)) {
+   		errorMsg =   jsonNewMessage (AJG_FATAL,"session [%s] sndcard block should have {name: %s} ", request->args, request->cardname);
+   	    goto OnErrorExit;
+   }
+   sessionname = json_object_get_string (element);
+
+   if (strcmp (sessionname, request->cardname)) {
+	   errorMsg =  jsonNewMessage (AJG_FATAL,"session=[%s] [%s] != [%d]", request->args, sessionname, request->cardname);
+	   goto OnErrorExit;
+   }
+
+   // let's get sound card controls out of session
+   if (!json_object_object_get_ex (jsonSession, "controls", &cardinfo)) {
+       errorMsg =  jsonNewMessage (AJG_FATAL,"session [%s/%s] fail to find 'controls' descriptor ", request->args, request->cardname);
+	   goto OnErrorExit;
+   }
+
+    for (index=0; index < json_object_array_length (cardinfo); index++) {
+        json_object *ctrlnumid, *ctrlvalue, *control;
+        control = json_object_array_get_idx(cardinfo, index);
+
+        // extract numid and values from sessions's controls
+        json_object_object_get_ex (control, "numid", &ctrlnumid);
+        json_object_object_get_ex (control, "value", &ctrlvalue);
+
+        // if session content is broken let's write within log file
+        if (ctrlnumid == NULL || ctrlvalue == NULL) {
+           fprintf (stderr, "AJG:WARNING invalid session [%s] descriptor [%s]\n", request->args, json_object_to_json_string(control));
+        }
+
+        // apply control to sound card ignoring errors
+        (void) alsaSetOneControl (session, request, ctrlnumid, ctrlvalue);
+   }
+
+   // we done let free jsonSession object
+   json_object_put   (jsonSession);
+   json_object_put   (sndcard);
+
+   // if we have a valid card handle let's close it
+   if (request->cardhandle != (void*)TRUE && request->cardhandle != NULL) snd_ctl_close(request->cardhandle);
+   return NULL; // in this case No Error message translates to OK
 
 OnErrorExit:
-    snd_ctl_close(handle);
-	return NULL;
+   if (jsonSession) json_object_put (jsonSession);
+   if (sndcard) json_object_put (sndcard);
+
+   // if we have a valid card handle let's close it
+   if (request->cardhandle != (void*)TRUE && request->cardhandle != NULL) snd_ctl_close(request->cardhandle);
+   return (errorMsg);
 }
 
 // load every control from the board in a very quiet mode to serialize on disk
-PUBLIC json_object *alsaDownloadSession (AJG_session *session, AJG_request *request) {
-    json_object *jsonSession;
+PUBLIC json_object *alsaStoreSession (AJG_session *session, AJG_request *request) {
+    json_object *controls, *response;
 
     request->quiet = 1;  // run quiet mode
-    jsonSession = alsaFindControls (session, request);
+    controls = alsaGetControl (session, request);
 
-    return jsonSession;
-}
-
-PUBLIC json_object *alsaUploadSession (AJG_session *session, AJG_request *request, json_object  *jsonSession) {
-
+    if (request->cardname == NULL) {
+       return jsonNewMessage (AJG_FATAL,"Sound card [hw:%d] no [name] element", request->sndcard);
+    }
+    response = sessionToDisk (session, request, controls);
+    json_object_put   (controls);    // decrease reference count to free the json object
+    return response;
 }

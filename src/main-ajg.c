@@ -207,7 +207,6 @@ static int readPidFile (AJG_config *config) {
  +--------------------------------------------------------- */
 static void closeSession (AJG_session *session) {
 
-  if (session->sndcards != NULL) json_object_put (session->sndcards);
 
 }
 
@@ -242,16 +241,24 @@ static void listenLoop (AJG_session *session) {
 
 /*----------------------------------------------------------
  | probeAlsa
- |   Probe ALSA and list sound cards
+ |   Probe ALSA and list sound cards. This is a simple
+ |   test function for json object structure
  +--------------------------------------------------------- */
-static void probeAlsa (AJG_session *session) {
+static AJG_ERROR probeAlsa (AJG_session *session) {
       AJG_request request;
-      json_object *sndcards =  alsaFindCards(session, &request);
-      json_object *sndcard, *slot;
+      json_object *sndcards, *sndlist, *sndcard, *slot, *element;
       int index, idx, length;
       char const *uid, *name, *info;
 
+      // create a dummy HTTP request and probe sound cards
       memset (&request,0,sizeof (request));
+      sndlist =  alsaFindCard(session, &request);
+
+      // search for sound card descriptor & get sndcard list
+      if (! json_object_object_get_ex (sndlist, "ajgtype", &element))   return AJG_FAIL;
+      if (!strcmp (json_object_get_string (element), "AJG_sndcards"))   return AJG_FAIL;
+      if (! json_object_object_get_ex (sndlist, "sndcards", &sndcards)) return AJG_FAIL;
+
       length = json_object_array_length (sndcards);
       fprintf (stderr,"\n---- Check Alsa [%d] cards ------\n", length);
 
@@ -275,6 +282,7 @@ static void probeAlsa (AJG_session *session) {
       }
       fprintf (stderr,"---- Check Alsa Done ------");
 
+  return AJG_SUCCESS;
 }
 
 /*---------------------------------------------------------
@@ -395,7 +403,7 @@ int main(int argc, char *argv[])  {
        goto normalExit;
 
     case CHECK_ALSA_CARDS:
-       probeAlsa (session);
+       if (probeAlsa (session) != AJG_SUCCESS) goto errSoundCard;
        goto normalExit;
 
     }
@@ -413,25 +421,20 @@ int main(int argc, char *argv[])  {
   // ------------------ Some useful default values -------------------------
   if  ((session->background == 0) && (session->foreground == 0)) session->foreground=1;
 
-
   // open syslog if ever needed
   openlog("alsajson-gw", 0, LOG_DAEMON);
 
   // -------------- Try to kill any previsou process if asked ---------------------
   if (session->killPrevious) {
-    pid = readPidFile (session->config);
-
+    pid = readPidFile (&cliconfig);  // enforce commandline option
     switch (pid) {
-    
     case -1:
-      fprintf (stderr, "%s ERR:main --kill-previous ignored no PID file [%s]\n",configTime(), session->config->pidfile);
+      fprintf (stderr, "%s ERR:main --kill ignored no PID file [%s]\n",configTime(), cliconfig.pidfile);
       break;
-     
     case 0:
-      fprintf (stderr, "%s ERR:main --kill-previous ignored no active alsajson-gw process\n",configTime());
+      fprintf (stderr, "%s ERR:main --kill ignored no active alsajson-gw process\n",configTime());
       break;
-      
-    default:             
+    default:
       status = kill (pid,SIGINT );
       if (status == 0) {
 	     if (verbose) printf ("%s INF:main signal INTR sent to pid:%d \n", configTime(), pid);
@@ -473,7 +476,7 @@ int main(int argc, char *argv[])  {
    // if --save then store config on disk upfront
    if (session->configsave) configStoreFile (session);
 
-    fprintf (stderr, "AlsaJson: Process init commands\n");
+    fprintf (stderr, "AJG: Process init commands\n");
     if (session->config->setuid) {
         int err;
 
@@ -492,15 +495,15 @@ int main(int argc, char *argv[])  {
     // ---- run in foreground mode --------------------
     if (session->foreground) {
 
-    if (verbose) fprintf (stderr,"AlsaJson: Keeping foreground mode\n");
-    
-    // write a pid file for --kill-previous and --raise-debug option  
-    status = writePidFile (session->config, getpid());
-    if (status == -1) goto errorPidFile;
+        if (verbose) fprintf (stderr,"AJG: Keeping foreground mode\n");
 
-    // enter listening loop in foreground
-    listenLoop(session);
-    goto exitInitLoop;
+        // write a pid file for --kill-previous and --raise-debug option
+        status = writePidFile (session->config, getpid());
+        if (status == -1) goto errorPidFile;
+
+        // enter listening loop in foreground
+        listenLoop(session);
+        goto exitInitLoop;
   } // end foreground
 
   
@@ -509,7 +512,7 @@ int main(int argc, char *argv[])  {
 
       // check first we can talk with ALSA board
       // if (status != 0) goto errorCommand;
-      if (verbose) printf ("AlsaJson: Entering background mode\n");
+      if (verbose) printf ("AJG: Entering background mode\n");
 
       // open /dev/console to redirect output messAJGes
       consoleFD = open(session->config->console, O_WRONLY | O_APPEND | O_CREAT , 0640);
@@ -521,7 +524,8 @@ int main(int argc, char *argv[])  {
       // son process get all data in standalone mode
       if (pid == 0) {
 
- 	 printf ("\nAlsaJson: background mode (pid:%d console:%s)\n", getpid(),session->config->console);
+ 	     printf ("\nAJG: background mode [pid:%d console:%s]\n", getpid(),session->config->console);
+ 	     if (verbose) printf ("AJG:info use '%s --kill --pidfile=%s' # to exit daemon\n", programName,session->config->pidfile);
 
          // redirect default I/O on console
          close (2); dup(consoleFD);  // redirect stderr
@@ -537,10 +541,12 @@ int main(int argc, char *argv[])  {
          fflush  (stderr);
 
          // if everything look OK then look forever    
-         syslog (LOG_ERR, "Entering background mode");
+         syslog (LOG_ERR, "AJG: Entering infinite loop in background mode");
 
          // should normally never return from this loop
          listenLoop(session);
+         syslog (LOG_ERR, "AJG:FAIL background infinite loop exited check [%s]\n", session->config->console);
+
          goto exitInitLoop;
       }
 
@@ -552,7 +558,7 @@ int main(int argc, char *argv[])  {
       if (status == -1) goto errorPidFile;
 
       // we are in father process, we don't need this one
-      close (consoleFD);
+      exit (0);
 
   } // end background-foreground
 
@@ -619,9 +625,13 @@ errSessiondir:
   fprintf (stderr,"\nERR:cannot read/write session dir\n\n");
   exit (-1);
 
+errSoundCard:
+  fprintf (stderr,"\nERR:fail to probe sound cards\n\n");
+  exit (-1);
+
 exitInitLoop:
   // try to unlink pid file if any
-  if (session->config->pidfile != NULL)  unlink (session->config->pidfile);
+  if (session->background && session->config->pidfile != NULL)  unlink (session->config->pidfile);
   exit (-1);
 
 } /* END main() */

@@ -20,33 +20,37 @@
    $Id: $
 */
 
-// Alsa proto
-PUBLIC json_object* alsaFindCards       (AJG_session *session, AJG_request *request);
-PUBLIC json_object* alsaFindControls    (AJG_session *session, AJG_request *request);
-PUBLIC json_object *alsaSetControls     (AJG_session *session, AJG_request *request);
-PUBLIC json_object *alsaProbeCard       (AJG_session *session, AJG_request *request);
-PUBLIC json_object *alsaDownloadSession (AJG_session *session, AJG_request *request);
-PUBLIC json_object *alsaUploadSession   (AJG_session *session, AJG_request *request, json_object  *jsonSession);
+// Alsa interface
+PUBLIC json_object *alsaFindCard     (AJG_session *session, AJG_request *request);
+PUBLIC json_object *alsaGetControl   (AJG_session *session, AJG_request *request);
+PUBLIC json_object *alsaSetControl   (AJG_session *session, AJG_request *request);
+PUBLIC json_object *alsaProbeCard    (AJG_session *session, AJG_request *request);
+PUBLIC json_object *alsaListSession  (AJG_session *session, AJG_request *request);
+PUBLIC json_object *alsaStoreSession (AJG_session *session, AJG_request *request);
+PUBLIC json_object *alsaLoadSession  (AJG_session *session, AJG_request *request);
 
 
 // Session handling
-PUBLIC AJG_ERROR sessionCheckdir             (AJG_session *session);
-PUBLIC json_object *sessionList        (AJG_session *session);
-PUBLIC json_object *sessionToDisk      (AJG_session *session, AJG_request *request, json_object *jsonSession);
-PUBLIC json_object *sessionFromDisk    (AJG_session *session, AJG_request *request);
+PUBLIC AJG_ERROR sessionCheckdir     (AJG_session *session);
+PUBLIC json_object *sessionList      (AJG_session *session, AJG_request *request);
+PUBLIC json_object *sessionToDisk    (AJG_session *session, AJG_request *request, json_object *jsonSession);
+PUBLIC json_object *sessionFromDisk  (AJG_session *session, AJG_request *request);
 
 
-// Httpd proto
+// Httpd server
 PUBLIC AJG_ERROR httpdStart          (AJG_session *session);
 PUBLIC AJG_ERROR httpdLoop           (AJG_session *session);
-PUBLIC void  httpdStop           (AJG_session *session);
+PUBLIC void  httpdStop               (AJG_session *session);
 
 
-
-// config proto
+// config management
 PUBLIC char *configTime        (void);
 PUBLIC AJG_session *configInit (void);
 PUBLIC json_object *jsonNewMessage (AJG_ERROR level, char* format, ...);
 PUBLIC json_object *jsonNewError (AJG_ERROR level);
 PUBLIC json_object *jsonNewAjgType (void);
+PUBLIC json_object *jsonNewMessage (AJG_ERROR level, char* format, ...);
+PUBLIC void jsonDumpObject (json_object * jObject);
+
+
 

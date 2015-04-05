@@ -64,8 +64,8 @@ STATIC void initService (AJG_session *session) {
     Request2Commands = json_object_new_object();
 
     json_object_object_add(Request2Commands, "ping-get"     , json_object_new_int (GATEWAY_PING));
-    json_object_object_add(Request2Commands, "card-get-all" , json_object_new_int (CTRL_GET_ALL));
-    json_object_object_add(Request2Commands, "card-get-one" , json_object_new_int (CTRL_GET_ALL));
+    json_object_object_add(Request2Commands, "card-get-all" , json_object_new_int (CARD_GET_ALL));
+    json_object_object_add(Request2Commands, "card-get-one" , json_object_new_int (CARD_GET_ONE));
     json_object_object_add(Request2Commands, "ctrl-get-all" , json_object_new_int (CTRL_GET_ALL));
     json_object_object_add(Request2Commands, "ctrl-get-one" , json_object_new_int (CTRL_GET_ONE));
     json_object_object_add(Request2Commands, "ctrl-set-one" , json_object_new_int (CTRL_SET_ONE));
@@ -90,8 +90,9 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
   const char *serialized;
 
   // clean up session
-  memset (&request, 0, sizeof (request));
   rqtcount++;
+  memset (&request, 0, sizeof (request));
+  jsonResponse=NULL;
 
   // process POST method
   if (0 == strcmp (method, MHD_HTTP_METHOD_POST)) {
@@ -126,75 +127,65 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
 
   switch (json_object_get_int(cmd)) {
 
-    case SESSION_LIST:  {// http://localhost:1234/jsonapi?request=gateway-ping
-       jsonResponse = sessionList (session);
-       break;
-    }
-
-  	case SESSION_LOAD: { // http://localhost:1234/jsonapi?request=session-load&args=sessionname
-  	   json_object *jsonSession;
-
-       if (verbose)  fprintf (stderr, "%d: alsajson SESSION_LOAD card=%d\n", rqtcount ++, request.sndcard );
-       if (!request.sndcard < 0) goto invalidRequest;
-
-       jsonSession = sessionFromDisk (session, &request);               // get session from disk
-       if (jsonSession != NULL) {
-           alsaUploadSession (session, &request, jsonSession);          // push session to alsa board
-           jsonResponse =    alsaDownloadSession(session, &request);    // we return effective date from sound board
-           json_object_put   (jsonSession);                             // decrease reference rqtcount to free the json object
-       }
-       break;
-   	}
-
-  	case SESSION_STORE: {// http://localhost:1234/jsonapi?request=session-store&sndcard=2&args=sessionname
-  	  json_object *jsonSession;
-
-      if (verbose)  fprintf (stderr, "%d: alsajson SESSION_STORE card=%d session=%d\n", rqtcount ++, request.sndcard, request.args );
-      if (request.sndcard < 0 || request.args  == NULL) goto invalidRequest;
-
-      jsonSession = alsaDownloadSession (session, &request);            // push session to alsa board
-      if (jsonSession != NULL) {
-         jsonResponse =sessionToDisk (session, &request, jsonSession);  // store session on disk
-      }
-      break;
-   	}
 
   	case GATEWAY_PING: // http://localhost:1234/jsonapi?request=ping-get [&sndcard=0]
   	    if (verbose) fprintf (stderr, "%d: alsajson GATEWAY_PING\n", rqtcount);
 
         if (request.sndcard < 0)  jsonResponse = gatewayPing ();
-        else jsonResponse = alsaProbeCard (session, &request);
+        else jsonResponse = alsaFindCard (session, &request);
   	    break;
 
-  	case CARD_GET_ALL: // http://localhost:1234/jsonapi?request=cards-get-all
+  	case CARD_GET_ALL: // http://localhost:1234/jsonapi?request=card-get-all
   	    if (verbose)  fprintf (stderr, "%d: alsajson CARD_GET_ALL\n", rqtcount ++);
-  	    jsonResponse = alsaFindCards (session, &request);
+  	    jsonResponse = alsaFindCard (session, &request); // sndcard = -1
   	    break;
 
-  	case CARD_GET_ONE: // http://localhost:1234/jsonapi?request=cards-get-one&sendcard=0
+  	case CARD_GET_ONE: // http://localhost:1234/jsonapi?request=card-get-one&sendcard=0
   	    if (verbose)  fprintf (stderr, "%d: alsajson CARD_GET_ONE card=%d\n", rqtcount ++, request.sndcard );
    	    if (request.sndcard < 0) goto invalidRequest;
-  	    jsonResponse = alsaFindCards (session, &request);
+  	    jsonResponse = alsaFindCard (session, &request);
   	    break;
 
   	case CTRL_GET_ALL: // http://localhost:1234/jsonapi?request=ctrl-get-all&sndcard=0
   	    if (verbose)  fprintf (stderr, "%d: alsajson CTRL_GET_ALL\n", rqtcount ++);
-   	    if (request.sndcard < 0) goto invalidRequest;
-  	    jsonResponse = alsaFindControls (session, &request);
+  	    request.numid = -1; // force list-all
+  	    jsonResponse = alsaGetControl (session, &request);  // numid == -1
   	    break;
 
-  	case CTRL_GET_ONE: // http://localhost:1234/jsonapi?request=ctrls-get-one&sndcard=2&numid=5&quiet=0
+  	case CTRL_GET_ONE: // http://localhost:1234/jsonapi?request=ctrl-get-one&sndcard=2&numid=5&quiet=0
   	    if (verbose)  fprintf (stderr, "%d: alsajson CTRL_GET_ONE card=%d numid=%d\n", rqtcount ++, request.sndcard ,request.numid);
-    	if (request.sndcard < 0 || request.numid < 0) goto invalidRequest;
-        jsonResponse = alsaFindControls (session, &request);
+        jsonResponse = alsaGetControl (session, &request);
  	    break;
 
-  	case CTRL_SET_ONE: {// http://localhost:1234/jsonapi?request=ctrls-set-one&sndcard=2&quiet=1&numid=128&args='10 5'
+  	case CTRL_SET_ONE: {// http://localhost:1234/jsonapi?request=ctrl-set-one&sndcard=2&quiet=1&numid=128&args=10,5
   	    if (verbose)  fprintf (stderr, "%d: alsajson processing CTRL_SET_ONE card=%d numid=%d\n", rqtcount ++, request.sndcard ,request.numid);
-    	if (request.sndcard < 0 || request.args == NULL ||  request.numid < 0) goto invalidRequest;
-        jsonResponse = alsaSetControls (session, &request);
+        jsonResponse = alsaSetControl (session, &request);
  	    break;
  	    }
+
+    case SESSION_LIST:  {// http://localhost:1234/jsonapi?request=session-list&sndcard=0
+       jsonResponse = alsaListSession (session, &request); // list session for requested sndcard
+       break;
+    }
+
+  	case SESSION_LOAD: { // http://localhost:1234/jsonapi?request=session-load&sndcard=2&args=sessionname
+  	   json_object *jsonSession;
+       if (verbose)  fprintf (stderr, "%d: alsajson SESSION_LOAD card=%d\n", rqtcount ++, request.sndcard );
+
+       jsonResponse = alsaLoadSession (session, &request);  // push session to alsa board
+       if (jsonResponse != NULL) break; // we got an error
+       jsonResponse = alsaGetControl (session, &request);    // we return effective data from sound board
+       break;
+   	}
+
+  	case SESSION_STORE: {// http://localhost:1234/jsonapi?request=session-store&sndcard=2&args=sessionname
+
+      if (verbose)  fprintf (stderr, "%d: alsajson SESSION_STORE card=%d session=%d\n", rqtcount ++, request.sndcard, request.args );
+      jsonResponse = alsaStoreSession (session, &request);  // push session to alsa board
+      break;
+   	}
+
+
 
   	default:
   	   goto invalidRequest;
@@ -203,6 +194,10 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
 
    // send response to client with a http AJG_SUCCESS status code
    // [note we need to copy serialize object because libmicrohttpd does not provide adequate free callback
+   if (jsonResponse == NULL) {
+      printf ("AJG:DEVBUG Request:%d Query=%s SndCard=%d NumId=%d Response=>NULL [please report bug]\n", rqtcount ++, query, request.sndcard ,request.numid);
+      goto invalidRequest;
+   }
    serialized = json_object_to_json_string(jsonResponse);
    response = MHD_create_response_from_buffer (strlen (serialized), (void*)serialized, MHD_RESPMEM_MUST_COPY);
 
@@ -366,13 +361,22 @@ PUBLIC AJG_ERROR httpdStart (AJG_session *session) {
 
 // infinit loop
 PUBLIC AJG_ERROR httpdLoop (AJG_session *session) {
+    static int count =0;
 
     initService(session); // initialise http static data
 
-    if (verbose) fprintf (stderr, "Httpd waiting loop\n");
-    while (TRUE)  {
-        fprintf (stderr, "Use Ctrl-C to quit");
-        (void)getc (stdin);
+    if (verbose) fprintf (stderr, "AJG: entering httpd waiting loop\n");
+    if (session->foreground) {
+
+        while (TRUE)  {
+            fprintf (stderr, "AJG: Use Ctrl-C to quit");
+            (void)getc (stdin);
+        }
+    } else {
+        while (TRUE) {
+           sleep (3600);
+           if (verbose) fprintf (stderr, "AJG:info httpd alive [%d]\n", count++);
+        }
     }
 
     // should never return from here

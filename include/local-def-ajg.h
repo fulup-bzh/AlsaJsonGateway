@@ -49,10 +49,9 @@ typedef int BOOL;
 #define STATIC    static
 #define MAX_SNDCARDS 5  // number of active Sound Cards
 
-
 // prebuild json error are constructed in config-ajg
 typedef enum  { AJG_FALSE, AJG_TRUE, AJG_FATAL, AJG_FAIL, AJG_WARNING, AJG_EMPTY, AJG_SUCCESS} AJG_ERROR;
-STATIC  char *ERROR_LABEL[]={"FALSE", "FALSE","FATAL", "FAIL", "WARNING", "EMPTY", "SUCCESS"};
+STATIC  char *ERROR_LABEL[]={"false", "true","fatal", "fail", "warning", "empty", "success"};
 
 // Error code are requested through function to manage json usage count
 typedef struct {
@@ -71,6 +70,8 @@ typedef struct {
   int  numid;
   const char *args;
 
+  void *cardhandle; // use to keep track of last card probed
+  char *cardname;   // cardname from alsaCardProbe
 } AJG_request;
 
 // main config structure
@@ -107,21 +108,16 @@ typedef struct {
 } AJG_sndcard;
 
 typedef struct {
-   AJG_config  *config;
-   json_object *sndcards;
+  AJG_config  *config;   // pointer to current config
 
-   // List of command to execute
+  // List of commands to execute
   int  killPrevious;
-
-  // level of execution
   int  background;        // run in backround mode
   int  foreground;        // run in forground mode
-  int  debugLevel;        // 0-9
   int  checkAlsa;         // Display active Alsa Board
   int  configsave;        // Save config on disk on start
 
   char *cacheTimeout;     // http require timeout to be a string
-
   void *httpd;            // anonymous structure for httpd handler
 } AJG_session;
 

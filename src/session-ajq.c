@@ -30,6 +30,9 @@
 #include <time.h>
 
 
+#define AJG_SESSION_JTYPE "AJG_session"
+#define AJG_SESSION_JLIST "AJG_sessions"
+
 
 // verify we can read/write in session dir
 PUBLIC AJG_ERROR sessionCheckdir (AJG_session *session) {
@@ -38,13 +41,13 @@ PUBLIC AJG_ERROR sessionCheckdir (AJG_session *session) {
 
 
    // in case session dir would not exist create one
-   if (verbose) fprintf (stderr, "AlsaJson: Checking session dir [%s]\n", session->config->sessiondir);
+   if (verbose) fprintf (stderr, "AJG: Checking session dir [%s]\n", session->config->sessiondir);
    mkdir(session->config->sessiondir, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 
    // change for session directory
    err = chdir(session->config->sessiondir);
    if (err) {
-     fprintf(stderr,"AlsaJson: Fail to chdir to %s error=%s\n", session->config->sessiondir, strerror(err));
+     fprintf(stderr,"AJG: Fail to chdir to %s error=%s\n", session->config->sessiondir, strerror(err));
      return err;
    }
 
@@ -62,19 +65,52 @@ STATIC int fileSelect (const struct dirent *entry) {
    return (strstr (entry->d_name, ".ajg") != NULL);
 }
 
+STATIC  json_object *checkCardDirExit (AJG_session *session, AJG_request *request ) {
+    int  sessionDir, cardDir;
+
+    // open session directory
+    sessionDir = open (session->config->sessiondir, O_DIRECTORY);
+    if (sessionDir < 0) {
+          return (jsonNewMessage (AJG_FAIL,"Fail to open directory [%s] error=%s", session->config->sessiondir, strerror(sessionDir)));
+    }
+
+   // create session sndcard directory if it does not exit
+    cardDir = openat (sessionDir, request->cardname,  O_DIRECTORY);
+    if (cardDir < 0) {
+          cardDir  = mkdirat (sessionDir, request->cardname, O_RDWR | S_IRWXU | S_IRGRP);
+          if (cardDir < 0) {
+              return (jsonNewMessage (AJG_FAIL,"Fail to create directory [%s/%s] error=%s", session->config->sessiondir, request->cardname, strerror(cardDir)));
+          }
+    }
+    close (sessionDir);
+    return NULL;
+}
+
 // create a session in current directory
-PUBLIC json_object *sessionList (AJG_session *session) {
+PUBLIC json_object *sessionList (AJG_session *session, AJG_request *request) {
     json_object *sessionsJ, *ajgResponse;
     struct stat fstat;
     struct dirent **namelist;
-    int    count;
+    int  count, sessionDir;
 
-    count = scandir(session->config->sessiondir, &namelist, fileSelect, alphasort);
-    if (count < 0) {
-        return (jsonNewMessage (AJG_FATAL,"Fail to scan sessions directory", session->config->sessiondir));
+    // if directory for card's sessions does not exist create it
+    ajgResponse = checkCardDirExit (session, request);
+    if (ajgResponse != NULL) return ajgResponse;
+
+    // open session directory
+    sessionDir = open (session->config->sessiondir, O_DIRECTORY);
+    if (sessionDir < 0) {
+          return (jsonNewMessage (AJG_FAIL,"Fail to open directory [%s] error=%s", session->config->sessiondir, strerror(sessionDir)));
     }
 
-    if (count == 0) return NULL;
+    count = scandirat (sessionDir, request->cardname, &namelist, fileSelect, alphasort);
+    close (sessionDir);
+
+    if (count < 0) {
+        return (jsonNewMessage (AJG_FAIL,"Fail to scan sessions directory [%s/%s] error=%s", session->config->sessiondir, request->cardname, strerror(sessionDir)));
+    }
+
+    if (count == 0) return (jsonNewMessage (AJG_EMPTY,"[%s] no session at [%s]", request->cardname, session->config->sessiondir));
 
     // loop on each session file, retrieve its date and push it into json response object
     sessionsJ = json_object_new_object();
@@ -99,27 +135,79 @@ PUBLIC json_object *sessionList (AJG_session *session) {
 
     // everything is OK let's build final response
     ajgResponse = json_object_new_object();
-    json_object_object_add (ajgResponse, "ajgtype"   , jsonNewAjgType());
-    json_object_object_add (ajgResponse, "status" , jsonNewError(AJG_SUCCESS));
-    json_object_object_add (ajgResponse, "data"   , sessionsJ);
+    json_object_object_add (ajgResponse, "ajgtype" , json_object_new_string (AJG_SESSION_JLIST));
+    json_object_object_add (ajgResponse, "status"  , jsonNewError(AJG_SUCCESS));
+    json_object_object_add (ajgResponse, "data"    , sessionsJ);
 
     return (ajgResponse);
 }
 
+// Load Json session object from disk
+PUBLIC json_object *sessionFromDisk (AJG_session *session, AJG_request *request) {
+    json_object *jsonSession, *ajgtype, *ajgResponse;
+    const char *ajglabel;
+    char filename [256];
+
+    if (request->args == NULL) {
+        return  (jsonNewMessage (AJG_FATAL,"session name missing &args=MySessionName", filename));
+    }
+
+
+    // if directory for card's sessions does not exist create it
+    ajgResponse = checkCardDirExit (session, request);
+    if (ajgResponse != NULL) return ajgResponse;
+
+    // add cardname and file extension to session name
+    strncpy (filename, request->cardname, sizeof(filename));
+    strncat (filename, "/", sizeof(filename));
+    strncat (filename, request->args, sizeof(filename));
+    strncat (filename, ".ajg", sizeof(filename));
+
+    // just upload json object and return without any further processing
+    jsonSession = json_object_from_file (filename);
+
+    if (jsonSession == NULL)  return (jsonNewMessage (AJG_EMPTY,"File [%s] not found", filename));
+
+    // verify that file is a JSON ALSA session type
+    if (!json_object_object_get_ex (jsonSession, "ajgtype", &ajgtype)) {
+        json_object_put   (jsonSession);
+        return  (jsonNewMessage (AJG_EMPTY,"File [%s] 'ajgtype' descriptor not found", filename));
+    }
+
+    // check type value is AJG_SESSION_JTYPE
+    ajglabel = json_object_get_string (ajgtype);
+    if (strcmp (AJG_SESSION_JTYPE, ajglabel)) {
+       json_object_put   (jsonSession);
+       return  (jsonNewMessage (AJG_FATAL,"File [%s] ajgtype=[%s] != [%s]", filename, ajglabel, AJG_SESSION_JTYPE));
+    }
+
+    return (jsonSession);
+}
+
 // push Json session object to disk
 PUBLIC json_object * sessionToDisk (AJG_session *session, AJG_request *request, json_object *jsonSession) {
-   static json_object *AJG_JSON_DONE;
+   static json_object *AJG_JSON_DONE, *ajgResponse;
    char filename [256];
    time_t rawtime;
    struct tm * timeinfo;
    int err;
+   static json_object * response;
 
-   // add file extention to session name
-   strncpy (filename, request->args, sizeof(filename));
+    if (request->args == NULL) {
+        return  (jsonNewMessage (AJG_FATAL,"session name missing &args=MySessionName", filename));
+    }
+
+    // if directory for card's sessions does not exist create it
+    ajgResponse = checkCardDirExit (session, request);
+    if (ajgResponse != NULL) return ajgResponse;
+
+   // add cardname and file extension to session name
+   strncpy (filename, request->cardname, sizeof(filename));
+   strncat (filename, "/", sizeof(filename));
+   strncat (filename, request->args, sizeof(filename));
    strncat (filename, ".ajg", sizeof(filename));
 
-
-   json_object_object_add(jsonSession, "ajgtype", json_object_new_string ("AJG_session"));
+   json_object_object_add(jsonSession, "ajgtype", json_object_new_string (AJG_SESSION_JTYPE));
 
    // add a timestamp and store session on disk
    time ( &rawtime );  timeinfo = localtime ( &rawtime );
@@ -127,19 +215,9 @@ PUBLIC json_object * sessionToDisk (AJG_session *session, AJG_request *request, 
    json_object_object_add (jsonSession, "timestamp", json_object_new_string (asctime (timeinfo)));
 
    err = json_object_to_file (filename, jsonSession);
-   json_object_put   (jsonSession);    // decrease reference count to free the json object
 
    // if OK we do not return anything
-   if (err < 0) return jsonNewMessage (AJG_FATAL,"Fail save session = [%s] to disk", filename);
-   return jsonNewMessage (AJG_SUCCESS,"Session= [%s] saved on disk", filename);
-}
-
-// push Json session object to disk
-PUBLIC json_object *sessionFromDisk (AJG_session *session, AJG_request *request) {
-    json_object * jsonSession;
-
-   // just upload json object and return without any further processing
-   jsonSession = json_object_from_file (request->args);
-
-   return jsonSession;
+   if (err < 0) response = jsonNewMessage (AJG_FATAL,"Fail save session = [%s] to disk", filename);
+   else response = jsonNewMessage (AJG_SUCCESS,"Session= [%s] saved on disk", filename);
+   return (response);
 }
