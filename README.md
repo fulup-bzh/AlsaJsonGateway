@@ -1,16 +1,20 @@
 alsa-json-gateway
 
 Object: provides an HTTP REST interface to ALSA mixer for HTML5 UI support
+
 Author: Fulup Ar Foll http://breizhme.net/en/author
+
 Demo:   http://breizhme.net/alsajson
 
 Alpha-01 release.
-   API should now remains stable.
-   All described features should work.
-   May still leak resources on some cases [hopefully not much]
-   This is a free software shipped with not guaranty.
+
+   * API should now remains stable.
+   * All described features should work.
+   * May still leak resources on some cases [hopefully not much]
+   * This is a free software shipped with not guaranty.
 
 Supported features
+
    Supports all ALSA/Mixer controls base on 'amixer' capabilities.
    Config store/Restore of sndcard setting on disk in JSON format.
    Supports HTTP/GET to allow HTML5/JS/CSS download without imposing an extra web server.
@@ -29,12 +33,12 @@ Building [Linux Only]
 
 Starting alsa-json-gateway
 
-   * export AJW_DIR=$HOME/AJW; mkdir -p $AJW_DIR/sessions
-   * ./built/alsajson-gw --help                                                        # get options
-   * ./built/alsajson-gw --rootdir=$AJW_DIR --verbose --port=1234                      # run foreground in verbose mode
-   * ./built/alsajson-gw --config=$AJW_DIR/AJG-config.json --rootdir=AJW_DIR  --save   # run save config
-   * ./built/alsajson-gw --config=AJW_DIR/AJG-config.json  --daemon                    # run in background mode
-   * ./built/alsajson-gw --config=AJW_DIR/AJG-config.json  --kill                      # kill current AJG daemon
+      export AJW_DIR=$HOME/AJW; mkdir -p $AJW_DIR/sessions
+      ./built/alsajson-gw --help                                                        # get options
+      ./built/alsajson-gw --rootdir=$AJW_DIR --verbose --port=1234                      # run foreground in verbose mode
+      ./built/alsajson-gw --config=$AJW_DIR/AJG-config.json --rootdir=AJW_DIR  --save   # run save config
+      ./built/alsajson-gw --config=AJW_DIR/AJG-config.json  --daemon                    # run in background mode
+      ./built/alsajson-gw --config=AJW_DIR/AJG-config.json  --kill                      # kill current AJG daemon
 
 REST API
      - GATEWAY_PING: #! ping AlsaJson gateway   ## amixer -c0 cget numid=first
@@ -66,13 +70,15 @@ REST API
            http://localhost:1234/jsonapi?request=session-load&sndcard=0&args=MySoundConfig
 
 WARNING remarks:
-    - ctrl setting values change depending on sndcard and numid. Check with CTRL_GET_ALL to find appropriated value for your config.
-    - load/store of session is per/board using on Alsa sndcard short name. Warning: session store from a given card should not be used on a different model.
-    - configs and sessions are store in JSON and accessible within Session directory. Nevertheless manually editing should be avoided, and hacking controls value may potentially damage your sound equipment.
+
+* ctrl setting values change depending on sndcard and numid. Check with CTRL_GET_ALL to find appropriated value for your config.
+* load/store of session is per/board using on Alsa sndcard short name. Warning: session store from a given card should not be used on a different model.
+* configs and sessions are store in JSON and accessible within Session directory. Nevertheless manually editing should be avoided, and hacking controls value may potentially damage your sound equipment.
 
 Missing Features :
-   - make clean mine type for CSS, JS, JSON.
-   - implement websock to support realtime monitoring.
-   - package inside OBS to provide binary packages.
+
+* make clean mine type for CSS, JS, JSON.
+* implement websock to support realtime monitoring.
+* package inside OBS to provide binary packages.
 
 
