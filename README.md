@@ -7,18 +7,18 @@
 
 Alpha-01 release.
 
-   * API should now remains stable.
+   * REST/API and JSON response should remains stable.
    * All described features should work.
    * May still leak resources on some cases [hopefully not much]
-   * This is a free software shipped with not guaranty.
+   * This is a free software shipped with not guaranty, and you're more than welcome to help.
 
 Supported features
 
-   Supports all ALSA/Mixer controls base on 'amixer' capabilities.
-   Config store/Restore of sndcard setting on disk in JSON format.
-   Supports HTTP/GET to allow HTML5/JS/CSS download without imposing an extra web server.
-   Runs in foreground or background as a disconnected daemon.
-   Does not require administrator privilege.
+*Supports every ALSA/Mixer controls base on 'amixer' capabilities.
+* Config store/Restore of sndcard setting on disk in JSON format.
+* Supports HTTP/GET to allow HTML5/JS/CSS download without imposing an extra web server.*
+* Runs in foreground or background as a disconnected daemon.
+* Does not require administrator privilege.
 
 Building [Linux Only]
 
