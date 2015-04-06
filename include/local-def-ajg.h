@@ -65,9 +65,9 @@ typedef struct {
 extern int verbose;
 
 typedef struct {
-  int  sndcard;
-  int  quiet;
-  int  numid;
+  const char  *cardid; // sound card UID
+  int   quiet;
+  int   numid;
   const char *args;
 
   void *cardhandle; // use to keep track of last card probed

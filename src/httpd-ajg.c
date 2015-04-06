@@ -75,7 +75,7 @@ STATIC void initService (AJG_session *session) {
 }
 
 STATIC  json_object *gatewayPing (void) {
-    json_object * pingJson = jsonNewMessage (AJG_SUCCESS,"count=%d", rqtcount);
+    json_object * pingJson = jsonNewMessage (AJG_SUCCESS,"%d", rqtcount);
     return (pingJson);
 }
 
@@ -111,9 +111,8 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
   if (query == NULL) goto invalidRequest;
   done=json_object_object_get_ex (Request2Commands, query, &cmd);
 
-  request.sndcard = -1; // no default card
-  param = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "sndcard");
-  if (param && ! sscanf (param, "%d", &request.sndcard)) goto invalidRequest;
+  request.cardid = NULL; // no default card
+  request.cardid = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "cardid");
 
   param = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "quiet");
   if (param && ! sscanf (param, "%d", &request.quiet)) goto invalidRequest;
@@ -131,7 +130,7 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
   	case GATEWAY_PING: // http://localhost:1234/jsonapi?request=ping-get [&sndcard=0]
   	    if (verbose) fprintf (stderr, "%d: alsajson GATEWAY_PING\n", rqtcount);
 
-        if (request.sndcard < 0)  jsonResponse = gatewayPing ();
+        if (request.cardid < 0)  jsonResponse = gatewayPing ();
         else jsonResponse = alsaFindCard (session, &request);
   	    break;
 
@@ -141,8 +140,8 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
   	    break;
 
   	case CARD_GET_ONE: // http://localhost:1234/jsonapi?request=card-get-one&sndcard=0
-  	    if (verbose)  fprintf (stderr, "%d: alsajson CARD_GET_ONE card=%d\n", rqtcount ++, request.sndcard );
-   	    if (request.sndcard < 0) goto invalidRequest;
+  	    if (verbose)  fprintf (stderr, "%d: alsajson CARD_GET_ONE card=%d\n", rqtcount ++, request.cardid );
+   	    if (request.cardid < 0) goto invalidRequest;
   	    jsonResponse = alsaFindCard (session, &request);
   	    break;
 
@@ -153,12 +152,12 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
   	    break;
 
   	case CTRL_GET_ONE: // http://localhost:1234/jsonapi?request=ctrl-get-one&sndcard=2&numid=5&quiet=0
-  	    if (verbose)  fprintf (stderr, "%d: alsajson CTRL_GET_ONE card=%d numid=%d\n", rqtcount ++, request.sndcard ,request.numid);
+  	    if (verbose)  fprintf (stderr, "%d: alsajson CTRL_GET_ONE card=%d numid=%d\n", rqtcount ++, request.cardid ,request.numid);
         jsonResponse = alsaGetControl (session, &request);
  	    break;
 
   	case CTRL_SET_ONE: {// http://localhost:1234/jsonapi?request=ctrl-set-one&sndcard=2&quiet=1&numid=128&args=10,5
-  	    if (verbose)  fprintf (stderr, "%d: alsajson processing CTRL_SET_ONE card=%d numid=%d\n", rqtcount ++, request.sndcard ,request.numid);
+  	    if (verbose)  fprintf (stderr, "%d: alsajson processing CTRL_SET_ONE card=%d numid=%d\n", rqtcount ++, request.cardid ,request.numid);
         jsonResponse = alsaSetControl (session, &request);
  	    break;
  	    }
@@ -170,7 +169,7 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
 
   	case SESSION_LOAD: { // http://localhost:1234/jsonapi?request=session-load&sndcard=2&args=sessionname
   	   json_object *jsonSession;
-       if (verbose)  fprintf (stderr, "%d: alsajson SESSION_LOAD card=%d\n", rqtcount ++, request.sndcard );
+       if (verbose)  fprintf (stderr, "%d: alsajson SESSION_LOAD card=%d\n", rqtcount ++, request.cardid );
 
        jsonResponse = alsaLoadSession (session, &request);  // push session to alsa board
        if (jsonResponse != NULL) break; // we got an error
@@ -180,7 +179,7 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
 
   	case SESSION_STORE: {// http://localhost:1234/jsonapi?request=session-store&sndcard=2&args=sessionname
 
-      if (verbose)  fprintf (stderr, "%d: alsajson SESSION_STORE card=%d session=%d\n", rqtcount ++, request.sndcard, request.args );
+      if (verbose)  fprintf (stderr, "%d: alsajson SESSION_STORE card=%d session=%d\n", rqtcount ++, request.cardid, request.args );
       jsonResponse = alsaStoreSession (session, &request);  // push session to alsa board
       break;
    	}
@@ -195,7 +194,7 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
    // send response to client with a http AJG_SUCCESS status code
    // [note we need to copy serialize object because libmicrohttpd does not provide adequate free callback
    if (jsonResponse == NULL) {
-      printf ("AJG:DEVBUG Request:%d Query=%s SndCard=%d NumId=%d Response=>NULL [please report bug]\n", rqtcount ++, query, request.sndcard ,request.numid);
+      printf ("AJG:DEVBUG Request:%d Query=%s SndCard=%d NumId=%d Response=>NULL [please report bug]\n", rqtcount ++, query, request.cardid ,request.numid);
       goto invalidRequest;
    }
    serialized = json_object_to_json_string(jsonResponse);
@@ -209,7 +208,7 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
 invalidRequest: { // send response to client with a http ERROR status code
 
     json_object *ajgMessage = jsonNewMessage (AJG_FATAL
-        , "Invalid/Unknown Request:%d Query=%s SndCard=%d NumId=%d", rqtcount ++, query, request.sndcard ,request.numid);
+        , "Invalid/Unknown Request:%d Query=%s SndCard=%d NumId=%d", rqtcount ++, query, request.cardid ,request.numid);
 
     serialized = json_object_to_json_string(ajgMessage);
     response = MHD_create_response_from_buffer (strlen (serialized), (void*)serialized, MHD_RESPMEM_MUST_COPY);

@@ -45,34 +45,38 @@ Starting alsa-json-gateway
       ./built/alsajson-gw --config=AJW_DIR/AJG-config.json  --kill                      # kill current AJG daemon
 
 REST API
+     - GENERIC Arguments
+           cardid=hw:xxx  xxx=card number [0-31]
+           numid=xxx    xxx=control numid [depend on sound boards]
+           quiet=0,1,2  0=verbose [default] 1=no enums,acl,000 2=just enough to control sndcard
 
      - GATEWAY_PING: #! ping AlsaJson gateway   ## amixer -c0 cget numid=first
            http://localhost:1234/jsonapi?request=ping-get
-           http://localhost:1234/jsonapi?request=ping-get&sndcard=0
+           http://localhost:1234/jsonapi?request=ping-get&cardid=hw:0
 
      - CARD_GET_ALL: ## aplay -L
            http://localhost:1234/jsonapi?request=card-get-all
 
-     - CARD_GET_ONE:  #! get name and info from sndcard=0
-           http://localhost:1234/jsonapi?request=card-get-one&sndcard=0
+     - CARD_GET_ONE:  #! get name and info from cardid=hw:0
+           http://localhost:1234/jsonapi?request=card-get-one&cardid=hw:0
 
      - CTRL_GET_ALL: ## amixer -c0 contents
-           http://localhost:1234/jsonapi?request=ctrl-get-all&sndcard=0
+           http://localhost:1234/jsonapi?request=ctrl-get-all&cardid=hw:0
 
      - CTRL_GET_ONE: ## amixer -c0 cget numid=3
-           http://localhost:1234/jsonapi?request=ctrl-get-one&sndcard=0&numid=5&quiet=0
+           http://localhost:1234/jsonapi?request=ctrl-get-one&cardid=hw:0&numid=5&quiet=0
 
      - CTRL_SET_ONE: ## amixer -c0 cget numid=5 '10,20'
-           http://localhost:1234/jsonapi?request=ctrl-set-one&sndcard=0&quiet=1&numid=5&args=10,5
+           http://localhost:1234/jsonapi?request=ctrl-set-one&cardid=hw:0&quiet=1&numid=5&args=10,5
 
-     - SESSION_STORE: #! store on disk sndcard=0 config under name MySoundConfig
-           http://localhost:1234/jsonapi?request=session-store&sndcard=0&args=MySoundConfig
+     - SESSION_STORE: #! store on disk cardid=hw:0 config under name MySoundConfig
+           http://localhost:1234/jsonapi?request=session-store&cardid=hw:0&args=MySoundConfig
 
-     - SESSION_LIST: #! list existing session on disk for sndcard=0
-           http://localhost:1234/jsonapi?request=session-list&sndcard=0
+     - SESSION_LIST: #! list existing session on disk for cardid=hw:0
+           http://localhost:1234/jsonapi?request=session-list&cardid=hw:0
 
-     - SESSION_LOAD: #! upload MySoundConfig session into sndcard=0
-           http://localhost:1234/jsonapi?request=session-load&sndcard=0&args=MySoundConfig
+     - SESSION_LOAD: #! upload MySoundConfig session into cardid=hw:0
+           http://localhost:1234/jsonapi?request=session-load&cardid=hw:0&args=MySoundConfig
 
 WARNING remarks:
 
