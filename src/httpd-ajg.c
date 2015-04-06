@@ -33,7 +33,6 @@
    http://libmicrohttpd.sourcearchive.com/documentation/0.4.2/microhttpd_8h.html
    https://gnunet.org/svn/libmicrohttpd/src/examples/fileserver_example_external_select.c
    https://github.com/json-c/json-c
-   $Id: $
 */
 
 #include <microhttpd.h>

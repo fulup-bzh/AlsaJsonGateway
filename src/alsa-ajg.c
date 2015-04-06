@@ -24,7 +24,6 @@
    https://github.com/json-c/json-c
    https://linuxprograms.wordpress.com/2010/05/20/json-c-libjson-tutorial/
 
-   $Format:%H$
 */
 
 #include "local-def-ajg.h"

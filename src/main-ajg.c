@@ -17,7 +17,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
-   $Id: $
 */
 
 
@@ -119,11 +118,13 @@ void signalFail (int signum) {
  +--------------------------------------------------------- */
  static void printVersion (void) {
 
-   fprintf (stderr,"\nalsajson-gw %3.2f\n", AJQ_VERSION);
-   fprintf (stderr,"------------------ \n\n");
-   fprintf(stderr,"Copyright (C) 2015 Fulup Ar Foll (fulup@breizhme.net)\n");
-   fprintf(stderr,"alsajson-gw comes with ABSOLUTELY NO WARRANTY. This is a free software,\n");
-   fprintf (stderr,"--------------------------------------------------------------- \n");
+   fprintf (stderr,"\n----------------------------------------- \n");
+   fprintf (stderr,"|  AJG [Alsa Json Gateway] version=%3.2f |\n", AJQ_VERSION);
+   fprintf (stderr,"----------------------------------------- \n");
+   fprintf (stderr,"|  Copyright(C) 2015 Fulup Ar Foll [fulup -at- breizhme.net]\n");
+   fprintf (stderr,"|  AJG comes with ABSOLUTELY NO WARRANTY.\n");
+   fprintf (stderr,"|  Licence [what ever makes you happy] until you fix bugs by yourself :)\n\n");
+   exit (0);
 
  } // end printVersion
 

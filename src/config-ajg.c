@@ -21,7 +21,6 @@
      https://www.gnu.org/software/libmicrohttpd/manual/html_node/index.html#Top
      http://www-01.ibm.com/support/knowledgecenter/SSB23S_1.1.0.9/com.ibm.ztpf-ztpfdf.doc_put.09/gtpc2/cpp_vsprintf.html?cp=SSB23S_1.1.0.9%2F0-3-8-1-0-16-8
 
-   $Id: $
 */
 
 
