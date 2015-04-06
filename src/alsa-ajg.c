@@ -35,7 +35,7 @@
 
 // retreive info for one given card
 PUBLIC json_object * alsaProbeCard (AJG_session *session, AJG_request *request) {
-      char  *info, *name, *uid;
+      char  *info, *name, *cardid;
       json_object *sndcard;
       snd_ctl_t   *handle;
       snd_ctl_card_info_t *cardinfo;
@@ -53,18 +53,18 @@ PUBLIC json_object * alsaProbeCard (AJG_session *session, AJG_request *request) 
 
 	  sndcard = json_object_new_object();
       json_object_object_add (sndcard, "ajgtype" ,json_object_new_string (AJG_SNDCARD_JTYPE));
-	  uid = strdup(request->cardid);
-      json_object_object_add (sndcard, "uid"     , json_object_new_string (uid));
+	  cardid = strdup(request->cardid);
+      json_object_object_add (sndcard, "cardid"     , json_object_new_string (cardid));
       name = strdup(snd_ctl_card_info_get_name (cardinfo));
       request->cardname = name; // save cardname for session management
 	  json_object_object_add (sndcard, "name"    , json_object_new_string (name));
 
-	  uid   = strdup(request->cardid);
+	  cardid   = strdup(request->cardid);
 
 	  if (!request->quiet) {
 		  info  = strdup(snd_ctl_card_info_get_longname (cardinfo));
           json_object_object_add (sndcard, "info" , json_object_new_string (info));
-   	      if (verbose) fprintf (stderr, "AJG: Sound Card uid=%s name=%s\n", uid, info);
+   	      if (verbose) fprintf (stderr, "AJG: Sound Card cardid=%s name=%s\n", cardid, info);
 	  }
 
       // if requested keep track of sound probed handle
@@ -81,7 +81,7 @@ PUBLIC json_object * alsaFindCard (AJG_session *session, AJG_request *request) {
 
 
 	// if no specific card requested loop on all
-	if (request->cardid < 0) {
+	if (request->cardid == NULL) {
 	     // return an array of sndcard
 		 sndcards =json_object_new_array();
 
@@ -89,13 +89,13 @@ PUBLIC json_object * alsaFindCard (AJG_session *session, AJG_request *request) {
 		 for (card =0; card < 32; card++) {
 			json_object *sndcard;
 
-			// build card UID and probe it
-			snprintf (cardid, sizeof(cardid), "hw:%d", card);
+			// build card cardid and probe it
+			snprintf (cardid, sizeof(cardid), "hw:%i", card);
 			request->cardid = cardid;
 			sndcard = alsaProbeCard (session, request);
 
-			// If card probe fail to return UID check for status
-			if (!json_object_object_get_ex (sndcard, "uid", &element)) {
+			// If card probe fail to return cardid check for status
+			if (!json_object_object_get_ex (sndcard, "cardid", &element)) {
 				char *status;
 				json_object_object_get_ex (sndcard, "status", &element);
 				if (!strcmp (status, ERROR_LABEL[AJG_FATAL]))  break;
@@ -108,8 +108,8 @@ PUBLIC json_object * alsaFindCard (AJG_session *session, AJG_request *request) {
 	 } else {
 		 // only one card was requested let's probe it
 		 sndcards = alsaProbeCard (session, request);
-		 // If card probe fail to return UID check for status
-		 if (!json_object_object_get_ex (sndcards, "uid", &element)) {
+		 // If card probe fail to return cardid check for status
+		 if (!json_object_object_get_ex (sndcards, "cardid", &element)) {
 			return (sndcards);
 		 }
 	}
@@ -486,7 +486,7 @@ PUBLIC json_object *alsaGetControl (AJG_session *session, AJG_request *request) 
 	json_object *response, *sndctrls, *control;
 
     // Open sound we use Alsa high level API like amixer.c
-	if ((err = snd_hctl_open(&handle, request->cardid, 0)) < 0) {
+	if (!request->cardid || (err = snd_hctl_open(&handle, request->cardid, 0)) < 0) {
 		return (jsonNewMessage (AJG_FAIL,"alsaGetControl cardid=[%s] open fail error=%s\n", request->cardid, snd_strerror(err)));
 	}
 
@@ -524,7 +524,8 @@ PUBLIC json_object *alsaGetControl (AJG_session *session, AJG_request *request) 
 
 	// add response json array to sndcard
 	json_object_object_add (response,"ajgtype", json_object_new_string (AJG_ALSACTL_JTYPE));
-	json_object_object_add (response,"response", sndctrls);
+    json_object_object_add (response, "status", jsonNewError(AJG_SUCCESS));
+	json_object_object_add (response,"data", sndctrls);
 	snd_hctl_close(handle);
 
 	return (response);

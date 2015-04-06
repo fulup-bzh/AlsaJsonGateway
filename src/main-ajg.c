@@ -37,7 +37,7 @@
  #define SET_TCP_PORT       111
  #define SET_ROOT_DIR       112
  #define SET_CACHE_TO       113
- #define SET_UID            114
+ #define SET_cardid            114
  #define SET_PID_FILE       115
  #define SET_SESSION_DIR    116
  #define SET_CONFIG_FILE    117
@@ -64,7 +64,7 @@ static  AJG_options cliOptions [] = {
   {SET_TCP_PORT     ,1,"port"            , "HTTP listening TCP port  [default 1234]"},
   {SET_ROOT_DIR     ,1,"rootdir"         , "HTTP Root Directory [default $PWD/public"},
   {SET_CACHE_TO     ,1,"cache-eol"       , "Client cache end of live [default 3600s]"},
-  {SET_UID          ,1,"setuid"          , "Change user id [default don't change]"},
+  {SET_cardid          ,1,"setuid"          , "Change user id [default don't change]"},
   {SET_PID_FILE     ,1,"pidfile"         , "PID file path [default none]"},
   {SET_SESSION_DIR  ,1,"sessiondir"      , "Sessions file path [default rootdir/sessions]"},
   {SET_CONFIG_FILE  ,1,"config"          , "Config Filename [default rootdir/sessions/configs/default.ajg]"},
@@ -249,7 +249,7 @@ static AJG_ERROR probeAlsa (AJG_session *session) {
       AJG_request request;
       json_object *sndcards, *sndlist, *sndcard, *slot, *element;
       int index, idx, length;
-      char const *uid, *name, *info;
+      char const *cardid, *name, *info;
 
       // create a dummy HTTP request and probe sound cards
       memset (&request,0,sizeof (request));
@@ -270,8 +270,8 @@ static AJG_ERROR probeAlsa (AJG_session *session) {
          json_object_object_get_ex (sndcard, "index", &slot);
          index = json_object_get_int (slot);
 
-         json_object_object_get_ex (sndcard, "uid", &slot);
-         uid = json_object_get_string (slot);
+         json_object_object_get_ex (sndcard, "cardid", &slot);
+         cardid = json_object_get_string (slot);
 
          json_object_object_get_ex (sndcard, "name", &slot);
          name = json_object_get_string (slot);
@@ -279,7 +279,7 @@ static AJG_ERROR probeAlsa (AJG_session *session) {
          json_object_object_get_ex (sndcard, "info", &slot);
          info = json_object_get_string (slot);
 
-         fprintf (stderr, " + %-2d uid=%-5s name:%-25s [%s]\n", index, uid, name, info);
+         fprintf (stderr, " + %-2d cardid=%-5s name:%-25s [%s]\n", index, cardid, name, info);
       }
       fprintf (stderr,"---- Check Alsa Done ------");
 
@@ -368,7 +368,7 @@ int main(int argc, char *argv[])  {
        session->configsave  = 1;
        break;
 
-    case SET_UID:
+    case SET_cardid:
        if (optarg != 0) goto noValueForOption;
        if (!sscanf (optarg, "%d", &cliconfig.setuid)) goto notAnInteger;
        break;
@@ -481,7 +481,7 @@ int main(int argc, char *argv[])  {
         int err;
 
         err = setuid(session->config->setuid);
-        if (err) error ("Fail to change program uid error=%d", snd_strerror(err));
+        if (err) error ("Fail to change program cardid error=%d", snd_strerror(err));
     }
 
     // let's not take the risk to run as ROOT

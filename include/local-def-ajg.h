@@ -65,7 +65,7 @@ typedef struct {
 extern int verbose;
 
 typedef struct {
-  const char  *cardid; // sound card UID
+  const char  *cardid; // sound card cardid
   int   quiet;
   int   numid;
   const char *args;
@@ -102,7 +102,7 @@ typedef struct {
 
 typedef struct {
   int  index;
-  char *uid;
+  char *cardid;
   char *name;
   char *info;
 } AJG_sndcard;
