@@ -51,9 +51,10 @@ static  json_object * Request2Commands = NULL;
 #define CTRL_GET_ALL   4
 #define CTRL_GET_ONE   5
 #define CTRL_SET_ONE   6
-#define SESSION_LIST   7
-#define SESSION_STORE  8
-#define SESSION_LOAD   9
+#define CTRL_SET_MANY  7
+#define SESSION_LIST   8
+#define SESSION_STORE  9
+#define SESSION_LOAD   10
 
 static int rqtcount;  // dummy request rqtcount to make each message be different
 
@@ -68,6 +69,7 @@ STATIC void initService (AJG_session *session) {
     json_object_object_add(Request2Commands, "ctrl-get-all" , json_object_new_int (CTRL_GET_ALL));
     json_object_object_add(Request2Commands, "ctrl-get-one" , json_object_new_int (CTRL_GET_ONE));
     json_object_object_add(Request2Commands, "ctrl-set-one" , json_object_new_int (CTRL_SET_ONE));
+    json_object_object_add(Request2Commands, "ctrl-set-many", json_object_new_int (CTRL_SET_MANY));
     json_object_object_add(Request2Commands, "session-list" , json_object_new_int (SESSION_LIST));
     json_object_object_add(Request2Commands, "session-store", json_object_new_int (SESSION_STORE));
     json_object_object_add(Request2Commands, "session-load" , json_object_new_int (SESSION_LOAD));
@@ -120,8 +122,9 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
   param = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "numid");
   if (param && ! sscanf (param, "%d", &request.numid)) goto invalidRequest;
 
-  // no default name
-  request.args = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "args");
+  // no default name no numid list
+  request.args   = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "args");
+  request.numids = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "numids");
 
   switch (json_object_get_int(cmd)) {
 
@@ -156,8 +159,14 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
  	    break;
 
   	case CTRL_SET_ONE: {// http://localhost:1234/jsonapi?request=ctrl-set-one&sndcard=2&quiet=1&numid=128&args=10,5
-  	    if (verbose)  fprintf (stderr, "%d: alsajson processing CTRL_SET_ONE card=%d numid=%d\n", rqtcount ++, request.cardid ,request.numid);
-        jsonResponse = alsaSetControl (session, &request);
+  	    if (verbose)  fprintf (stderr, "%d: alsajson processing CTRL_SET_ONE card=%d numid=%d args=%s\n", rqtcount ++, request.cardid ,request.numid, request.args);
+        jsonResponse = alsaSetOneCtrl (session, &request);
+ 	    break;
+ 	    }
+
+  	case CTRL_SET_MANY: {// http://localhost:1234/jsonapi?request=ctrl-set-one&sndcard=2&quiet=1&numids=10,12,13&args=10
+  	    if (verbose)  fprintf (stderr, "%d: alsajson processing CTRL_SET_MANY card=%d numids=%s args=%s\n", rqtcount ++, request.cardid ,request.numids, request.args);
+        jsonResponse = alsaSetManyCtrl (session, &request);
  	    break;
  	    }
 

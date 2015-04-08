@@ -69,6 +69,7 @@ typedef struct {
   int   quiet;
   int   numid;
   const char *args;
+  const char *numids;
 
   void *cardhandle; // use to keep track of last card probed
   char *cardname;   // cardname from alsaCardProbe

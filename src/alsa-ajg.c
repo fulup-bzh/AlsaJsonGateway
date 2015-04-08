@@ -35,7 +35,8 @@
 
 // retreive info for one given card
 PUBLIC json_object * alsaProbeCard (AJG_session *session, AJG_request *request) {
-      char  *info, *name, *cardid;
+      char  *info, *name;
+      const char *cardid, *driver;
       json_object *sndcard;
       snd_ctl_t   *handle;
       snd_ctl_card_info_t *cardinfo;
@@ -51,20 +52,23 @@ PUBLIC json_object * alsaProbeCard (AJG_session *session, AJG_request *request) 
 		  return  jsonNewMessage (AJG_FAIL, "SndCard [%s] info error: %s", request->cardid, snd_strerror(err));
 	  }
 
+	  // cardid= strdup(request->cardid);
+	  cardid= snd_ctl_card_info_get_id(cardinfo);
+
 	  sndcard = json_object_new_object();
       json_object_object_add (sndcard, "ajgtype" ,json_object_new_string (AJG_SNDCARD_JTYPE));
-	  cardid = strdup(request->cardid);
-      json_object_object_add (sndcard, "cardid"     , json_object_new_string (cardid));
+      json_object_object_add (sndcard, "cardid"  , json_object_new_string (cardid));
       name = strdup(snd_ctl_card_info_get_name (cardinfo));
       request->cardname = name; // save cardname for session management
 	  json_object_object_add (sndcard, "name"    , json_object_new_string (name));
 
-	  cardid   = strdup(request->cardid);
-
 	  if (!request->quiet) {
+          json_object_object_add (sndcard, "devid"   , json_object_new_string (request->cardid));
+	  	  driver= snd_ctl_card_info_get_driver(cardinfo);
+          json_object_object_add (sndcard, "driver"  , json_object_new_string (driver));
 		  info  = strdup(snd_ctl_card_info_get_longname (cardinfo));
           json_object_object_add (sndcard, "info" , json_object_new_string (info));
-   	      if (verbose) fprintf (stderr, "AJG: Sound Card cardid=%s name=%s\n", cardid, info);
+   	      if (verbose) fprintf (stderr, "AJG: Soundcard Devid=%-5s Cardid=%-7s Name=%s\n", request->cardid, cardid, info);
 	  }
 
       // if requested keep track of sound probed handle
@@ -531,7 +535,7 @@ PUBLIC json_object *alsaGetControl (AJG_session *session, AJG_request *request) 
 	return (response);
 }
 
-PUBLIC json_object *alsaSetControl (AJG_session *session, AJG_request *request) {
+PUBLIC json_object *alsaSetOneCtrl (AJG_session *session, AJG_request *request) {
     static json_object * okresponse =NULL;
 	int err;
 	snd_ctl_t *handle;
@@ -601,7 +605,7 @@ ExitNow:
 
 // Low level push one control values to sound card.
 // Warning: at this level we expect session file to be save and we write integer values without verification.
-STATIC AJG_ERROR alsaSetOneControl(AJG_session *session, AJG_request *request, json_object *ctrlnumid, json_object *ctrlvalue) {
+STATIC AJG_ERROR alsaSimpleSetCtrl(AJG_session *session, AJG_request *request, json_object *ctrlnumid, json_object *ctrlvalue) {
     static json_object *okresponse=NULL, *element;
 	int err, numid, value;
 	snd_ctl_elem_info_t *info;
@@ -610,6 +614,11 @@ STATIC AJG_ERROR alsaSetOneControl(AJG_session *session, AJG_request *request, j
 	unsigned int index, count, length;
 
     // extract NUMid and loop on values
+
+    if (!json_object_is_type(ctrlnumid,json_type_int))  {
+      	fprintf (stderr, "AJG: Fail numid=%s not an interger\n",  json_object_to_json_string(ctrlnumid));
+      	return AJG_FAIL;
+    }
     numid = json_object_get_int (ctrlnumid);
 
    	snd_ctl_elem_id_alloca(&myid);
@@ -645,6 +654,7 @@ STATIC AJG_ERROR alsaSetOneControl(AJG_session *session, AJG_request *request, j
     for (index=0; index < count && index < length; index++) {
         element = json_object_array_get_idx(ctrlvalue, index);
         value= json_object_get_int (element);
+
         snd_ctl_elem_value_set_integer(control, index, value);
     }
 
@@ -673,6 +683,72 @@ PUBLIC json_object *alsaListSession (AJG_session *session, AJG_request *request)
    json_object_put (sndcard); // release sndcard json object
    return (response);
 }
+
+
+// assign multiple control to the same value
+PUBLIC json_object *alsaSetManyCtrl (AJG_session *session, AJG_request *request) {
+   json_object *errorMsg, *sndcard, *numids,*ctrlnumid, *ctrlvalue;
+   const char *cardname;
+   unsigned int index, value;
+
+   // probe soundcard to check it exist and get it name
+   request->cardhandle = (void*)TRUE; // request for not closing card handle
+   sndcard = alsaProbeCard (session, request);
+   if (request->cardname == NULL) {
+       errorMsg =  jsonNewMessage (AJG_FATAL,"Sound card [%s] has no 'name' element", request->cardid);
+  	   goto OnErrorExit;
+   }
+
+   // extract numids from string
+   numids = json_tokener_parse (request->numids);
+   if (!json_object_is_type (numids, json_type_array)) {
+   		errorMsg = jsonNewMessage (AJG_FATAL,"sndcard=%s invalid json numids array=%s args=%s", request->cardname, request->numids, request->args);
+       goto OnErrorExit;
+   }
+
+   // extract value from args
+   //if (!request->args || !sscanf (request->args, "%d", &value)) {
+   ctrlvalue = json_tokener_parse (request->args);
+   if (!json_object_is_type (ctrlvalue, json_type_array)) {
+   		errorMsg = jsonNewMessage (AJG_FATAL,"sndcard=%s numids=[%s] Invalid json args array=%s", request->cardname, request->numids, request->args);
+   	    goto OnErrorExit;
+   }
+
+
+    // loop on numid
+    for (index=0; index < json_object_array_length (numids); index++) {
+        AJG_ERROR status;
+
+        ctrlnumid = json_object_array_get_idx(numids, index);
+
+        if (ctrlnumid == NULL || ctrlvalue == NULL) {
+           errorMsg = jsonNewMessage (AJG_FAIL,"%s alsaSetManyCtrl:%d invalid request numids=%s args=%s\n",  request->cardname, index, request->numids, request->args);
+    	   goto OnErrorExit;
+        }
+
+        // apply control to sound card
+        status = alsaSimpleSetCtrl (session, request, ctrlnumid, ctrlvalue);
+        if (status != AJG_SUCCESS) {
+           errorMsg = jsonNewMessage (AJG_FAIL,"%s alsaSetManyCtrl:%d request refused numids=%s args=%s\n",  request->cardname, index, request->numids, request->args);
+    	   goto OnErrorExit;
+        }
+   }
+
+   // we done let free jsonSession object
+   json_object_put   (sndcard);
+
+   // if we have a valid card handle let's close it
+   if (request->cardhandle != (void*)TRUE && request->cardhandle != NULL) snd_ctl_close(request->cardhandle);
+   return jsonNewAjgType();
+
+OnErrorExit:
+   if (sndcard) json_object_put (sndcard);
+
+   // if we have a valid card handle let's close it
+   if (request->cardhandle != (void*)TRUE && request->cardhandle != NULL) snd_ctl_close(request->cardhandle);
+   return (errorMsg);
+}
+
 
 // load a session for requested card
 PUBLIC json_object *alsaLoadSession (AJG_session *session, AJG_request *request) {
@@ -729,7 +805,7 @@ PUBLIC json_object *alsaLoadSession (AJG_session *session, AJG_request *request)
         }
 
         // apply control to sound card ignoring errors
-        (void) alsaSetOneControl (session, request, ctrlnumid, ctrlvalue);
+        (void) alsaSimpleSetCtrl (session, request, ctrlnumid, ctrlvalue);
    }
 
    // we done let free jsonSession object
@@ -738,7 +814,7 @@ PUBLIC json_object *alsaLoadSession (AJG_session *session, AJG_request *request)
 
    // if we have a valid card handle let's close it
    if (request->cardhandle != (void*)TRUE && request->cardhandle != NULL) snd_ctl_close(request->cardhandle);
-   return NULL; // in this case No Error message translates to OK
+   return jsonNewError (AJG_SUCCESS);
 
 OnErrorExit:
    if (jsonSession) json_object_put (jsonSession);

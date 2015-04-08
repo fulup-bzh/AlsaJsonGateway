@@ -23,7 +23,8 @@
 // Alsa interface
 PUBLIC json_object *alsaFindCard     (AJG_session *session, AJG_request *request);
 PUBLIC json_object *alsaGetControl   (AJG_session *session, AJG_request *request);
-PUBLIC json_object *alsaSetControl   (AJG_session *session, AJG_request *request);
+PUBLIC json_object *alsaSetOneCtrl   (AJG_session *session, AJG_request *request);
+PUBLIC json_object *alsaSetManyCtrl  (AJG_session *session, AJG_request *request);
 PUBLIC json_object *alsaProbeCard    (AJG_session *session, AJG_request *request);
 PUBLIC json_object *alsaListSession  (AJG_session *session, AJG_request *request);
 PUBLIC json_object *alsaStoreSession (AJG_session *session, AJG_request *request);
