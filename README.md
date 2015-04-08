@@ -66,8 +66,11 @@ REST API
      - CTRL_GET_ONE: ## amixer -c0 cget numid=3
            http://localhost:1234/jsonapi?request=ctrl-get-one&cardid=hw:0&numid=5&quiet=0
 
-     - CTRL_SET_ONE: ## amixer -c0 cget numid=5 '10,20'
+     - CTRL_SET_ONE: ## amixer -c0 cget numid=5 '10,20' Note: setone use ALSA hight level API and support enums as value arguments
            http://localhost:1234/jsonapi?request=ctrl-set-one&cardid=hw:0&quiet=1&numid=5&args=10,5
+
+     - CTRL_SET_MANY: ## set multiple numids at the same value level [usefull for stereo sync setup] only accept integer values
+           http://localhost:1234/jsonapi?request=ctrl-set-many&cardid=hw:0&quiet=1&numids=[5,6,7,8,8]&args=[10,5,7]
 
      - SESSION_STORE: #! store on disk cardid=hw:0 config under name MySoundConfig
            http://localhost:1234/jsonapi?request=session-store&cardid=hw:0&args=MySoundConfig

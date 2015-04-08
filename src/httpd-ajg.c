@@ -132,7 +132,7 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
   	case GATEWAY_PING: // http://localhost:1234/jsonapi?request=ping-get [&sndcard=0]
   	    if (verbose) fprintf (stderr, "%d: alsajson GATEWAY_PING\n", rqtcount);
 
-        if (request.cardid < 0)  jsonResponse = gatewayPing ();
+        if (request.cardid == NULL)  jsonResponse = gatewayPing ();
         else jsonResponse = alsaFindCard (session, &request);
   	    break;
 
