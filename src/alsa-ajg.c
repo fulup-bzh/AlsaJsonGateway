@@ -700,9 +700,9 @@ PUBLIC json_object *alsaSetManyCtrl (AJG_session *session, AJG_request *request)
    }
 
    // extract numids from string
-   numids = json_tokener_parse (request->numids);
+   numids = json_tokener_parse (request->data);
    if (!json_object_is_type (numids, json_type_array)) {
-   		errorMsg = jsonNewMessage (AJG_FATAL,"sndcard=%s invalid json numids array=%s args=%s", request->cardname, request->numids, request->args);
+   		errorMsg = jsonNewMessage (AJG_FATAL,"sndcard=%s invalid json numids array=%s args=%s", request->cardname, request->data, request->args);
        goto OnErrorExit;
    }
 
@@ -710,7 +710,7 @@ PUBLIC json_object *alsaSetManyCtrl (AJG_session *session, AJG_request *request)
    //if (!request->args || !sscanf (request->args, "%d", &value)) {
    ctrlvalue = json_tokener_parse (request->args);
    if (!json_object_is_type (ctrlvalue, json_type_array)) {
-   		errorMsg = jsonNewMessage (AJG_FATAL,"sndcard=%s numids=[%s] Invalid json args array=%s", request->cardname, request->numids, request->args);
+   		errorMsg = jsonNewMessage (AJG_FATAL,"sndcard=%s numids=[%s] Invalid json args array=%s", request->cardname, request->data, request->args);
    	    goto OnErrorExit;
    }
 
@@ -722,14 +722,14 @@ PUBLIC json_object *alsaSetManyCtrl (AJG_session *session, AJG_request *request)
         ctrlnumid = json_object_array_get_idx(numids, index);
 
         if (ctrlnumid == NULL || ctrlvalue == NULL) {
-           errorMsg = jsonNewMessage (AJG_FAIL,"%s alsaSetManyCtrl:%d invalid request numids=%s args=%s\n",  request->cardname, index, request->numids, request->args);
+           errorMsg = jsonNewMessage (AJG_FAIL,"%s alsaSetManyCtrl:%d invalid request numids=%s args=%s\n",  request->cardname, index, request->data, request->args);
     	   goto OnErrorExit;
         }
 
         // apply control to sound card
         status = alsaSimpleSetCtrl (session, request, ctrlnumid, ctrlvalue);
         if (status != AJG_SUCCESS) {
-           errorMsg = jsonNewMessage (AJG_FAIL,"%s alsaSetManyCtrl:%d request refused numids=%s args=%s\n",  request->cardname, index, request->numids, request->args);
+           errorMsg = jsonNewMessage (AJG_FAIL,"%s alsaSetManyCtrl:%d request refused numids=%s args=%s\n",  request->cardname, index, request->data, request->args);
     	   goto OnErrorExit;
         }
    }

@@ -60,6 +60,13 @@ typedef struct {
   json_object *json;
 } AJG_ErrorT;
 
+// Post handler
+typedef struct {
+  char* data;
+  int   len;
+  int   uid;
+} AJG_HttpPost;
+
 
 // some usefull static object initialized when entering listen loop.
 extern int verbose;
@@ -69,10 +76,11 @@ typedef struct {
   int   quiet;
   int   numid;
   const char *args;
-  const char *numids;
+  const char *data;
 
   void *cardhandle; // use to keep track of last card probed
   char *cardname;   // cardname from alsaCardProbe
+
 } AJG_request;
 
 // main config structure
@@ -120,6 +128,7 @@ typedef struct {
 
   char *cacheTimeout;     // http require timeout to be a string
   void *httpd;            // anonymous structure for httpd handler
+
 } AJG_session;
 
 

@@ -31,6 +31,9 @@
 
 #define AJG_SESSION_JTYPE "AJG_session"
 #define AJG_SESSION_JLIST "AJG_sessions"
+#define AJG_SESSION_JINFO "AJG_infos"
+
+STATIC char *lastSession = "default"; // Default for last session is default session
 
 
 // verify we can read/write in session dir
@@ -147,9 +150,15 @@ PUBLIC json_object *sessionFromDisk (AJG_session *session, AJG_request *request)
     char filename [256];
 
     if (request->args == NULL) {
-        return  (jsonNewMessage (AJG_FATAL,"session name missing &args=MySessionName", filename));
+        return  (jsonNewMessage (AJG_FATAL,"session name missing &session=MySessionName", filename));
     }
 
+    // if current session ask load last session
+    if (strcmp (request->args, "current") == 0) request->args = lastSession;
+
+    // keep current session name
+    if (lastSession != NULL) free (lastSession);
+    lastSession = strdup (request->args);
 
     // if directory for card's sessions does not exist create it
     ajgResponse = checkCardDirExit (session, request);
@@ -184,20 +193,22 @@ PUBLIC json_object *sessionFromDisk (AJG_session *session, AJG_request *request)
 
 // push Json session object to disk
 PUBLIC json_object * sessionToDisk (AJG_session *session, AJG_request *request, json_object *jsonSession) {
-   static json_object *AJG_JSON_DONE, *ajgResponse;
+   static json_object *AJG_JSON_DONE; // built once only
    char filename [256];
    time_t rawtime;
    struct tm * timeinfo;
    int err;
-   static json_object * response;
+   static json_object *response;
 
-    if (request->args == NULL) {
-        return  (jsonNewMessage (AJG_FATAL,"session name missing &args=MySessionName", filename));
-    }
+   // we should have a session name
+   if (request->args == NULL) return (jsonNewMessage (AJG_FATAL,"session name missing &session=MySessionName", filename));
+
+   // if current session requested we load last saved one
+   if (strcmp (request->args, "current") ==0) request->args = lastSession;
 
     // if directory for card's sessions does not exist create it
-    ajgResponse = checkCardDirExit (session, request);
-    if (ajgResponse != NULL) return ajgResponse;
+    response = checkCardDirExit (session, request);
+    if (response != NULL) return response;
 
    // add cardname and file extension to session name
    strncpy (filename, request->cardname, sizeof(filename));
@@ -212,10 +223,50 @@ PUBLIC json_object * sessionToDisk (AJG_session *session, AJG_request *request, 
    // A copy of the string is made and the memory is managed by the json_object
    json_object_object_add (jsonSession, "timestamp", json_object_new_string (asctime (timeinfo)));
 
-   err = json_object_to_file (filename, jsonSession);
 
-   // if OK we do not return anything
-   if (err < 0) response = jsonNewMessage (AJG_FATAL,"Fail save session = [%s] to disk", filename);
-   else response = jsonNewMessage (AJG_SUCCESS,"Session= [%s] saved on disk", filename);
+   // do we have extra session info ?
+   if (request->data) {
+       static json_object *info, *ajgtype;
+       const char  *ajglabel;
+
+       // extract session info from args
+       info = json_tokener_parse (request->data);
+       if (!info) {
+            response = jsonNewMessage (AJG_FATAL,"sndcard=%s session=%s invalid json args=%s", request->cardname, request->args, request->data);
+            goto OnErrorExit;
+       }
+
+       // info is a valid AJG_info type
+       if (!json_object_object_get_ex (info, "ajgtype", &ajgtype)) {
+            response = jsonNewMessage (AJG_EMPTY,"sndcard=%s session=%s No 'AJG_type' args=%s", request->cardname, request->args, request->data);
+            goto OnErrorExit;
+       }
+
+       // check type value is AJG_INFO_JTYPE
+       ajglabel = json_object_get_string (ajgtype);
+       if (strcmp (AJG_SESSION_JINFO, ajglabel)) {
+              json_object_put   (info); // release info json object
+              response = jsonNewMessage (AJG_FATAL,"File [%s] ajgtype=[%s] != [%s] data=%s", filename, ajglabel, AJG_SESSION_JTYPE, request->data);
+              goto OnErrorExit;
+       }
+
+       // this is valid info data for our session
+       json_object_object_add (jsonSession, "info", info);
+   }
+
+   // Finally save session on disk
+   err = json_object_to_file (filename, jsonSession);
+   if (err < 0) {
+        response = jsonNewMessage (AJG_FATAL,"Fail save session = [%s] to disk", filename);
+        goto OnErrorExit;
+   }
+
+   // we're donne let's return status message
+   response = jsonNewMessage (AJG_SUCCESS,"Session= [%s] saved on disk", filename);
+   json_object_put (jsonSession);
    return (response);
+
+OnErrorExit:
+   json_object_put (jsonSession);
+   return response;
 }

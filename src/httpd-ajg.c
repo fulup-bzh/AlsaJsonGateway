@@ -33,14 +33,20 @@
    http://libmicrohttpd.sourcearchive.com/documentation/0.4.2/microhttpd_8h.html
    https://gnunet.org/svn/libmicrohttpd/src/examples/fileserver_example_external_select.c
    https://github.com/json-c/json-c
+   POST https://www.gnu.org/software/libmicrohttpd/manual/html_node/microhttpd_002dpost.html#microhttpd_002dpost
 */
 
 #include <microhttpd.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <string.h>
+
 
 #include "local-def-ajg.h"
 #define BANNER "<html><head><title>Alsa Json Gateway</title></head><body>Alsa Json Gateway</body></html>"
+
+#define JSON_CONTENT  "application/json"
+
 
 
 //  List of Query Commands
@@ -56,7 +62,8 @@ static  json_object * Request2Commands = NULL;
 #define SESSION_STORE  9
 #define SESSION_LOAD   10
 
-static int rqtcount;  // dummy request rqtcount to make each message be different
+static int rqtcount  = 0;  // dummy request rqtcount to make each message be different
+static int postcount = 0;
 
 // use json lib hash table capabilities to handle command parsing
 STATIC void initService (AJG_session *session) {
@@ -80,12 +87,27 @@ STATIC  json_object *gatewayPing (void) {
     return (pingJson);
 }
 
+
+// Because of POST call multiple time requestApi we need to free POST handle here
+static void endRequest (void *cls, struct MHD_Connection *connection, void **con_cls, enum MHD_RequestTerminationCode toe) {
+  AJG_HttpPost *posthandle = *con_cls;
+
+  // if post handle was used let's free everything
+  if (posthandle) {
+     if (verbose) fprintf (stderr, "End Post Request UID=%d\n", posthandle->uid);
+     free (posthandle->data);
+     free (posthandle);
+  }
+}
+
+
 // process rest API query
-STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, const char *method) {
+STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, const char *method,  const char* url
+                      , const char *upload_data, size_t *upload_data_size, void **con_cls) {
   const char  *query, *param;
   json_object *cmd;
   int sndcard, done, ret;
-  json_object *jsonResponse, *sndcardJ;
+  json_object *jsonResponse, *sndcardJ, *errMessage;
   struct MHD_Response  *response;
   AJG_request request;
   const char *serialized;
@@ -95,36 +117,99 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
   memset (&request, 0, sizeof (request));
   jsonResponse=NULL;
 
-  // process POST method
+  // Process POST action. Libmicrohttpd POST handling is everything except simple!!! Not only the logic is less
+  // than obvious to understand. But furthermore documentation and samples are almost each of them more impossible
+  // that the other. In AJG it's even worse as we use JSON contend type that is not supported by Libmicrohttpd
+  // PostPossessor API. https://www.gnu.org/software/libmicrohttpd/manual/html_node/microhttpd_002dpost.html#microhttpd_002dpost
   if (0 == strcmp (method, MHD_HTTP_METHOD_POST)) {
+    const char *encoding;
+    int    contentlen=-1;
+    AJG_HttpPost *posthandle = *con_cls;
 
-      fprintf (stderr, "Post method not implemented [TBD :)]\n");
-      return MHD_NO;
+    // Let make sure we have the right encoding and a valid length
+    encoding = MHD_lookup_connection_value (connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_CONTENT_TYPE);
+    param    = MHD_lookup_connection_value (connection, MHD_HEADER_KIND, MHD_HTTP_HEADER_CONTENT_LENGTH);
+    if (param) sscanf (param,"%i",&contentlen);
 
-  // process GET method
-  } else if (0 == strcmp (method, MHD_HTTP_METHOD_GET)) {
-      // extract request query attribute from URL through ApiCmd
-      query = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "request");
-  // ignore any other methods
-  } else return MHD_NO;
+    // POST datas may come in multiple chunk. Even when it never happen on AJG, we still have to handle the case
+    if (strcasestr (encoding, JSON_CONTENT) == 0) {
+        json_object *response;
+        errMessage = jsonNewMessage (AJG_FATAL, "Post Date wrong type encoding=%s != %s", encoding, JSON_CONTENT);
+        goto ExitOnError;
+    }
 
+    // In POST mode 1st call is only design to establish POST processor.
+    // As JSON content is not supported out of box, but must provide something equivalent.
+    if (posthandle == NULL) {
+       posthandle = malloc (sizeof (AJG_HttpPost));   // allocate application POST processor handle
+       posthandle->uid = postcount ++;                // build a UID for DEBUG
+       posthandle->len = 0;                           // effective length within POST handler
+       posthandle->data= malloc (contentlen +1);      // allocate memory for full POST data + 1 for '\0' enf of string
+       *con_cls = posthandle;                         // attache POST handle to current HTTP session
+
+       if (verbose) fprintf (stderr, "Create Post Request UID=%d\n", posthandle->uid);
+       return MHD_YES;
+    }
+
+    // This time we receive partial/all Post data. Note that even if we get all POST data. We should nevertheless
+    // return MHD_YES and not process the request directly. Otherwise Libmicrohttpd is unhappy and fails with
+    // 'Internal application error, closing connection'.
+    if (*upload_data_size) {
+        if (verbose) fprintf (stderr, "Update Post Request UID=%d\n", posthandle->uid);
+
+        memcpy (&posthandle->data[posthandle->len], upload_data, *upload_data_size);
+        posthandle->len = posthandle->len + *upload_data_size;
+        *upload_data_size = 0;
+        return MHD_YES;
+    }
+
+    // We should only start to process DATA after Libmicrohttpd call or application handler with *upload_data_size==0
+    // At this level we're may verify that we got everything and process DATA
+    if (posthandle->len != contentlen) {
+        json_object *response;
+        errMessage = jsonNewMessage (AJG_FATAL, "Post Data Incomplete UID=%d Len %d != %s", posthandle->uid, contentlen, posthandle->len);
+        goto ExitOnError;
+    }
+
+    // Before processing data, make sure buffer string is properly ended
+    posthandle->data[posthandle->len] = '\0';
+    request.data = posthandle->data;
+
+    fprintf (stderr, "Post Data Buffer=%s UID=%d\n", request.data, posthandle->uid);
+
+
+  // process GET method and ignore any other
+  } else if (strcmp (method, MHD_HTTP_METHOD_GET) != 0) {
+       errMessage = jsonNewMessage (AJG_FATAL, "Not a POST/GET method=%s", method);
+       goto ExitOnError;
+
+  }
+
+  // extract request query attribute from URL through ApiCmd
+  query = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "request");
+  if (query == NULL) {
+    errMessage = jsonNewMessage (AJG_FATAL, "Invalid AJG REST request &request=xxxxx& missing ", query, param);
+    goto ExitOnError;
+  }
   // extract command value from json object and process it
-  if (query == NULL) goto invalidRequest;
   done=json_object_object_get_ex (Request2Commands, query, &cmd);
 
   request.cardid = NULL; // no default card
   request.cardid = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "cardid");
 
   param = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "quiet");
-  if (param && ! sscanf (param, "%d", &request.quiet)) goto invalidRequest;
+  if (param && ! sscanf (param, "%d", &request.quiet)) {
+    errMessage = jsonNewMessage (AJG_FATAL, "Query=%s Quiet not integer &quiet=%s&", query, param);
+    goto ExitOnError;
+  }
 
   request.numid = -1;  // no default
   param = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "numid");
-  if (param && ! sscanf (param, "%d", &request.numid)) goto invalidRequest;
+  if (param && ! sscanf (param, "%d", &request.numid)) {
+    errMessage = jsonNewMessage (AJG_FATAL, "Query=%s NumID not integer &numid=%s&", query, param);
+    goto ExitOnError;
+  }
 
-  // no default name no numid list
-  request.args   = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "args");
-  request.numids = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "numids");
 
   switch (json_object_get_int(cmd)) {
 
@@ -143,7 +228,10 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
 
   	case CARD_GET_ONE: // http://localhost:1234/jsonapi?request=card-get-one&sndcard=0
   	    if (verbose)  fprintf (stderr, "%d: alsajson CARD_GET_ONE card=%d\n", rqtcount ++, request.cardid );
-   	    if (request.cardid < 0) goto invalidRequest;
+   	    if (request.cardid == NULL) {
+            errMessage = jsonNewMessage (AJG_FAIL, "CARD_GET_ONE Query=%s Missing &SndCard=xxxx&\n", query);
+   	        goto ExitOnError;
+   	    }
   	    jsonResponse = alsaFindCard (session, &request);
   	    break;
 
@@ -158,14 +246,20 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
         jsonResponse = alsaGetControl (session, &request);
  	    break;
 
-  	case CTRL_SET_ONE: {// http://localhost:1234/jsonapi?request=ctrl-set-one&sndcard=2&quiet=1&numid=128&args=10,5
+  	case CTRL_SET_ONE: {// http://localhost:1234/jsonapi?request=ctrl-set-one&sndcard=2&quiet=1&numid=128&value=10,5
   	    if (verbose)  fprintf (stderr, "%d: alsajson processing CTRL_SET_ONE card=%d numid=%d args=%s\n", rqtcount ++, request.cardid ,request.numid, request.args);
+        request.args   = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "value");
         jsonResponse = alsaSetOneCtrl (session, &request);
  	    break;
  	    }
 
   	case CTRL_SET_MANY: {// http://localhost:1234/jsonapi?request=ctrl-set-one&sndcard=2&quiet=1&numids=10,12,13&args=10
-  	    if (verbose)  fprintf (stderr, "%d: alsajson processing CTRL_SET_MANY card=%d numids=%s args=%s\n", rqtcount ++, request.cardid ,request.numids, request.args);
+ 	    // if data where not found in POST try to get them from GET [do not forget URL size constrains]
+        if (request.data == NULL) request.data = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "numids");
+        request.args   = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "value");
+
+  	    if (verbose)  fprintf (stderr, "%d: alsajson processing CTRL_SET_MANY card=%d numids=%s value=%s\n", rqtcount ++, request.cardid ,request.data, request.args);
+
         jsonResponse = alsaSetManyCtrl (session, &request);
  	    break;
  	    }
@@ -177,7 +271,10 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
 
   	case SESSION_LOAD: { // http://localhost:1234/jsonapi?request=session-load&sndcard=2&args=sessionname
   	   json_object *jsonSession;
-       if (verbose)  fprintf (stderr, "%d: alsajson SESSION_LOAD card=%d\n", rqtcount ++, request.cardid );
+
+       request.args   = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "session");
+
+       if (verbose)  fprintf (stderr, "%d: alsajson SESSION_LOAD cardid=%s session=%s\n", rqtcount ++, request.cardid, request.args);
 
        jsonResponse = alsaLoadSession (session, &request);  // push session to alsa board
        if (jsonResponse != NULL) break; // we got an error
@@ -185,47 +282,45 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
        break;
    	}
 
-  	case SESSION_STORE: {// http://localhost:1234/jsonapi?request=session-store&sndcard=2&args=sessionname
+  	case SESSION_STORE: {// http://localhost:1234/jsonapi?request=session-store&sndcard=2&session=sessionname
 
-      if (verbose)  fprintf (stderr, "%d: alsajson SESSION_STORE card=%d session=%d\n", rqtcount ++, request.cardid, request.args );
-      jsonResponse = alsaStoreSession (session, &request);  // push session to alsa board
-      break;
+       request.args   = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "session");
+
+  	   // if data where not found in POST try to get them from GET [do not forget URL size constrains]
+   	   if (request.data == NULL) request.data = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "info");
+
+       if (verbose)  fprintf (stderr, "%d: alsajson SESSION_STORE cardid=%s session=%s\n", rqtcount ++, request.cardid, request.args );
+       jsonResponse = alsaStoreSession (session, &request);  // push session to alsa board
+       break;
    	}
 
-
-
   	default:
-  	   goto invalidRequest;
+       errMessage = jsonNewMessage (AJG_FAIL, "%d:unknown Request=%s Cardid=%s NumId=%d\n", rqtcount ++, query, request.cardid ,request.numid);
+  	   goto ExitOnError;
    }
-
 
    // send response to client with a http AJG_SUCCESS status code
    // [note we need to copy serialize object because libmicrohttpd does not provide adequate free callback
    if (jsonResponse == NULL) {
-      printf ("AJG:DEVBUG Request:%d Query=%s SndCard=%d NumId=%d Response=>NULL [please report bug]\n", rqtcount ++, query, request.cardid ,request.numid);
-      goto invalidRequest;
+       errMessage = jsonNewMessage (AJG_FATAL,"Request:%d Query=%s SndCard=%d NumId=%d Response=>NULL [please report bug]\n", rqtcount ++, query, request.cardid ,request.numid);
+       goto ExitOnError;
    }
+
    serialized = json_object_to_json_string(jsonResponse);
    response = MHD_create_response_from_buffer (strlen (serialized), (void*)serialized, MHD_RESPMEM_MUST_COPY);
 
-    ret = MHD_queue_response (connection, MHD_HTTP_OK, response);
-    MHD_destroy_response (response);
-    json_object_put (jsonResponse); // decrease reference rqtcount to free the json object
-    return ret;
+   ret = MHD_queue_response (connection, MHD_HTTP_OK, response);
+   MHD_destroy_response (response);
+   json_object_put (jsonResponse); // decrease reference rqtcount to free the json object
+   return ret;
 
-invalidRequest: { // send response to client with a http ERROR status code
-
-    json_object *ajgMessage = jsonNewMessage (AJG_FATAL
-        , "Invalid/Unknown Request:%d Query=%s SndCard=%d NumId=%d", rqtcount ++, query, request.cardid ,request.numid);
-
-    serialized = json_object_to_json_string(ajgMessage);
-    response = MHD_create_response_from_buffer (strlen (serialized), (void*)serialized, MHD_RESPMEM_MUST_COPY);
-
-    ret = MHD_queue_response (connection, MHD_HTTP_BAD_REQUEST, response);
-    MHD_destroy_response (response);
-    json_object_put (jsonResponse); // decrease reference rqtcount to free the json object
-    return ret;
-    }
+ExitOnError:
+   serialized = json_object_to_json_string(errMessage);
+   response = MHD_create_response_from_buffer (strlen (serialized), (void*)serialized, MHD_RESPMEM_MUST_COPY);
+   ret = MHD_queue_response (connection, MHD_HTTP_BAD_REQUEST, response);
+   MHD_destroy_response (response);
+   json_object_put (errMessage); // decrease reference rqtcount to free the json object
+   return ret;
 }
 
 // Create check etag value
@@ -323,14 +418,14 @@ STATIC int newRequest (void *cls,
   const char *url,
   const char *method,
   const char *version,
-  const char *upload_data, size_t *upload_data_size, void **ptr) {
+  const char *upload_data, size_t *upload_data_size, void **con_cls) {
 
   static int aptr;
   AJG_session *session = cls;
   int ret;
 
   if (0 == strcmp (url, "/jsonapi")) {
-       ret = requestApi (connection, session, method);
+       ret = requestApi (connection, session, method, url, upload_data, upload_data_size, con_cls);
   } else {
       if (0 != strcmp (method, MHD_HTTP_METHOD_GET)) return MHD_NO;   /* unexpected method */
       ret = requestFile (connection, session, url);
@@ -338,6 +433,7 @@ STATIC int newRequest (void *cls,
 
   return ret;
 }
+
 
 STATIC int newClient (void *cls, const struct sockaddr * addr, socklen_t addrlen) {
   // check if client is comming from an acceptable IP
@@ -356,6 +452,7 @@ PUBLIC AJG_ERROR httpdStart (AJG_session *session) {
             session->config->httpdPort,   // port
             &newClient, NULL,       // Tcp Accept call back + extra attribute
             &newRequest, session,  // Http Request Call back + extra attribute
+            MHD_OPTION_NOTIFY_COMPLETED, &endRequest, NULL,
 			MHD_OPTION_CONNECTION_TIMEOUT, (unsigned int) 15, MHD_OPTION_END); // 15s + options-end
 			// TBD: MHD_OPTION_SOCK_ADDR
 
