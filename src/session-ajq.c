@@ -33,7 +33,10 @@
 #define AJG_SESSION_JLIST "AJG_sessions"
 #define AJG_SESSION_JINFO "AJG_infos"
 
-STATIC char *lastSession = "default"; // Default for last session is default session
+#define AJG_CURRENT_SESSION "active-session"  // file link name within sndcard dir
+#define AJG_DEFAULT_SESSION "current-session" // should be in sync with UI
+
+
 
 
 // verify we can read/write in session dir
@@ -68,6 +71,11 @@ STATIC int fileSelect (const struct dirent *entry) {
 
 STATIC  json_object *checkCardDirExit (AJG_session *session, AJG_request *request ) {
     int  sessionDir, cardDir;
+
+    // card name should be more than 5 character long !!!!
+    if (strlen (request->cardname) < 5) {
+       return (jsonNewMessage (AJG_FAIL,"Fail invalid sndcard cardid=%s cardname [%s]", request->cardid, request->cardname));
+    }
 
     // open session directory
     sessionDir = open (session->config->sessiondir, O_DIRECTORY);
@@ -110,23 +118,28 @@ PUBLIC json_object *sessionList (AJG_session *session, AJG_request *request) {
     if (count < 0) {
         return (jsonNewMessage (AJG_FAIL,"Fail to scan sessions directory [%s/%s] error=%s", session->config->sessiondir, request->cardname, strerror(sessionDir)));
     }
-
     if (count == 0) return (jsonNewMessage (AJG_EMPTY,"[%s] no session at [%s]", request->cardname, session->config->sessiondir));
 
     // loop on each session file, retrieve its date and push it into json response object
-    sessionsJ = json_object_new_object();
+    sessionsJ = json_object_new_array();
     while (count--) {
+         json_object *sessioninfo;
          char timestamp [64];
          char *filename;
          struct tm lastupdate;
 
+         // extract file name and last modification date
          filename = namelist[count]->d_name;
-
          printf("%s\n", filename);
          stat(filename,&fstat);
-
          strftime (timestamp, sizeof(timestamp), "%c", localtime (&fstat.st_mtime));
-         json_object_object_add (sessionsJ,filename , json_object_new_string (timestamp));
+         filename[strlen(filename)-4] = '\0'; // remove .ajg extension from filename
+
+         // create an object by session with last update date
+         sessioninfo = json_object_new_object();
+         json_object_object_add (sessioninfo, "date" , json_object_new_string (timestamp));
+         json_object_object_add (sessioninfo, "session" , json_object_new_string (filename));
+         json_object_array_add (sessionsJ, sessioninfo);
 
          free(namelist[count]);
     }
@@ -143,31 +156,46 @@ PUBLIC json_object *sessionList (AJG_session *session, AJG_request *request) {
     return (ajgResponse);
 }
 
+// Create a link toward last used sessionname within sndcard directory
+STATIC void makeSessionLink (const char *cardname, const char *sessionname) {
+   char linkname [256], filename [256];
+   int err;
+   // create a link to keep track of last uploaded sessionname for this card
+   strncpy (filename, sessionname, sizeof(filename));
+   strncat (filename, ".ajg", sizeof(filename));
+
+   strncpy (linkname, cardname, sizeof(linkname));
+   strncat (linkname, "/", sizeof(filename));
+   strncat (linkname, AJG_CURRENT_SESSION, sizeof(linkname));
+   strncat (linkname, ".ajg", sizeof(filename));
+   unlink (linkname); // remove previous link if any
+   err = symlink (filename, linkname);
+   if (err < 0) fprintf (stderr, "Fail to create link %s->%s error=%s\n", linkname, filename, strerror(errno));
+}
+
 // Load Json session object from disk
 PUBLIC json_object *sessionFromDisk (AJG_session *session, AJG_request *request) {
-    json_object *jsonSession, *ajgtype, *ajgResponse;
+    json_object *jsonSession, *ajgtype, *response;
     const char *ajglabel;
     char filename [256];
+    int defsession;
 
     if (request->args == NULL) {
         return  (jsonNewMessage (AJG_FATAL,"session name missing &session=MySessionName", filename));
     }
 
-    // if current session ask load last session
-    if (strcmp (request->args, "current") == 0) request->args = lastSession;
-
-    // keep current session name
-    if (lastSession != NULL) free (lastSession);
-    lastSession = strdup (request->args);
+    // check for current session request
+    defsession = (strcmp (request->args, AJG_DEFAULT_SESSION) ==0);
 
     // if directory for card's sessions does not exist create it
-    ajgResponse = checkCardDirExit (session, request);
-    if (ajgResponse != NULL) return ajgResponse;
+    response = checkCardDirExit (session, request);
+    if (response != NULL) return response;
 
     // add cardname and file extension to session name
     strncpy (filename, request->cardname, sizeof(filename));
     strncat (filename, "/", sizeof(filename));
-    strncat (filename, request->args, sizeof(filename));
+    if (defsession) strncat (filename, AJG_CURRENT_SESSION, sizeof(filename));
+    else strncat (filename, request->args, sizeof(filename));
     strncat (filename, ".ajg", sizeof(filename));
 
     // just upload json object and return without any further processing
@@ -188,6 +216,9 @@ PUBLIC json_object *sessionFromDisk (AJG_session *session, AJG_request *request)
        return  (jsonNewMessage (AJG_FATAL,"File [%s] ajgtype=[%s] != [%s]", filename, ajglabel, AJG_SESSION_JTYPE));
     }
 
+    // create a link to keep track of last uploaded session for this card
+    if (!defsession) makeSessionLink (request->cardname, request->args);
+
     return (jsonSession);
 }
 
@@ -197,24 +228,26 @@ PUBLIC json_object * sessionToDisk (AJG_session *session, AJG_request *request, 
    char filename [256];
    time_t rawtime;
    struct tm * timeinfo;
-   int err;
+   int err, defsession;
    static json_object *response;
 
    // we should have a session name
    if (request->args == NULL) return (jsonNewMessage (AJG_FATAL,"session name missing &session=MySessionName", filename));
 
-   // if current session requested we load last saved one
-   if (strcmp (request->args, "current") ==0) request->args = lastSession;
+   // check for current session request
+   defsession = (strcmp (request->args, AJG_DEFAULT_SESSION) ==0);
 
-    // if directory for card's sessions does not exist create it
-    response = checkCardDirExit (session, request);
-    if (response != NULL) return response;
+   // if directory for card's sessions does not exist create it
+   response = checkCardDirExit (session, request);
+   if (response != NULL) return response;
 
    // add cardname and file extension to session name
    strncpy (filename, request->cardname, sizeof(filename));
    strncat (filename, "/", sizeof(filename));
-   strncat (filename, request->args, sizeof(filename));
+   if (defsession) strncat (filename, AJG_CURRENT_SESSION, sizeof(filename));
+   else strncat (filename, request->args, sizeof(filename));
    strncat (filename, ".ajg", sizeof(filename));
+
 
    json_object_object_add(jsonSession, "ajgtype", json_object_new_string (AJG_SESSION_JTYPE));
 
@@ -260,6 +293,10 @@ PUBLIC json_object * sessionToDisk (AJG_session *session, AJG_request *request, 
         response = jsonNewMessage (AJG_FATAL,"Fail save session = [%s] to disk", filename);
         goto OnErrorExit;
    }
+
+
+   // create a link to keep track of last uploaded session for this card
+   if (!defsession) makeSessionLink (request->cardname, request->args);
 
    // we're donne let's return status message
    response = jsonNewMessage (AJG_SUCCESS,"Session= [%s] saved on disk", filename);

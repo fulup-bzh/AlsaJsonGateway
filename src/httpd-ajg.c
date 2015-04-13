@@ -46,7 +46,7 @@
 #define BANNER "<html><head><title>Alsa Json Gateway</title></head><body>Alsa Json Gateway</body></html>"
 
 #define JSON_CONTENT  "application/json"
-
+#define MAX_POST_SIZE  4096   // maximum size for POST data
 
 
 //  List of Query Commands
@@ -135,6 +135,12 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
     if (strcasestr (encoding, JSON_CONTENT) == 0) {
         json_object *response;
         errMessage = jsonNewMessage (AJG_FATAL, "Post Date wrong type encoding=%s != %s", encoding, JSON_CONTENT);
+        goto ExitOnError;
+    }
+
+    if (contentlen > MAX_POST_SIZE) {
+        json_object *response;
+        errMessage = jsonNewMessage (AJG_FATAL, "Post Date to big %d > %d", contentlen, MAX_POST_SIZE);
         goto ExitOnError;
     }
 
@@ -227,7 +233,7 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
   	    break;
 
   	case CARD_GET_ONE: // http://localhost:1234/jsonapi?request=card-get-one&sndcard=0
-  	    if (verbose)  fprintf (stderr, "%d: alsajson CARD_GET_ONE card=%d\n", rqtcount ++, request.cardid );
+  	    if (verbose)  fprintf (stderr, "%d: alsajson CARD_GET_ONE cardid=%s\n", rqtcount ++, request.cardid );
    	    if (request.cardid == NULL) {
             errMessage = jsonNewMessage (AJG_FAIL, "CARD_GET_ONE Query=%s Missing &SndCard=xxxx&\n", query);
    	        goto ExitOnError;
@@ -241,24 +247,24 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
   	    jsonResponse = alsaGetControl (session, &request);  // numid == -1
   	    break;
 
-  	case CTRL_GET_ONE: // http://localhost:1234/jsonapi?request=ctrl-get-one&sndcard=2&numid=5&quiet=0
-  	    if (verbose)  fprintf (stderr, "%d: alsajson CTRL_GET_ONE card=%d numid=%d\n", rqtcount ++, request.cardid ,request.numid);
+  	case CTRL_GET_ONE: // http://localhost:1234/jsonapi?request=ctrl-get-one&cardid=hw:0&numid=5&quiet=0
+  	    if (verbose)  fprintf (stderr, "%d: alsajson CTRL_GET_ONE cardid=%s numid=%d\n", rqtcount ++, request.cardid ,request.numid);
         jsonResponse = alsaGetControl (session, &request);
  	    break;
 
-  	case CTRL_SET_ONE: {// http://localhost:1234/jsonapi?request=ctrl-set-one&sndcard=2&quiet=1&numid=128&value=10,5
-  	    if (verbose)  fprintf (stderr, "%d: alsajson processing CTRL_SET_ONE card=%d numid=%d args=%s\n", rqtcount ++, request.cardid ,request.numid, request.args);
+  	case CTRL_SET_ONE: {// http://localhost:1234/jsonapi?request=ctrl-set-one&cardid=hw:0&quiet=1&numid=128&value=10,5
+  	    if (verbose)  fprintf (stderr, "%d: alsajson processing CTRL_SET_ONE cardid=%s numid=%d args=%s\n", rqtcount ++, request.cardid ,request.numid, request.args);
         request.args   = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "value");
         jsonResponse = alsaSetOneCtrl (session, &request);
  	    break;
  	    }
 
-  	case CTRL_SET_MANY: {// http://localhost:1234/jsonapi?request=ctrl-set-one&sndcard=2&quiet=1&numids=10,12,13&args=10
+  	case CTRL_SET_MANY: {// http://localhost:1234/jsonapi?request=ctrl-set-one&cardid=hw:0&quiet=1&numids=10,12,13&args=10
  	    // if data where not found in POST try to get them from GET [do not forget URL size constrains]
         if (request.data == NULL) request.data = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "numids");
         request.args   = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "value");
 
-  	    if (verbose)  fprintf (stderr, "%d: alsajson processing CTRL_SET_MANY card=%d numids=%s value=%s\n", rqtcount ++, request.cardid ,request.data, request.args);
+  	    if (verbose)  fprintf (stderr, "%d: alsajson processing CTRL_SET_MANY cardid=%s numids=%s value=%s\n", rqtcount ++, request.cardid ,request.data, request.args);
 
         jsonResponse = alsaSetManyCtrl (session, &request);
  	    break;
@@ -269,20 +275,18 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
        break;
     }
 
-  	case SESSION_LOAD: { // http://localhost:1234/jsonapi?request=session-load&sndcard=2&args=sessionname
+  	case SESSION_LOAD: { // http://localhost:1234/jsonapi?request=session-load&cardid=hw:0&args=sessionname
   	   json_object *jsonSession;
 
        request.args   = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "session");
-
        if (verbose)  fprintf (stderr, "%d: alsajson SESSION_LOAD cardid=%s session=%s\n", rqtcount ++, request.cardid, request.args);
 
        jsonResponse = alsaLoadSession (session, &request);  // push session to alsa board
-       if (jsonResponse != NULL) break; // we got an error
-       jsonResponse = alsaGetControl (session, &request);    // we return effective data from sound board
+
        break;
    	}
 
-  	case SESSION_STORE: {// http://localhost:1234/jsonapi?request=session-store&sndcard=2&session=sessionname
+  	case SESSION_STORE: {// http://localhost:1234/jsonapi?request=session-store&cardid=hw:0&session=sessionname
 
        request.args   = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "session");
 
@@ -302,7 +306,7 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
    // send response to client with a http AJG_SUCCESS status code
    // [note we need to copy serialize object because libmicrohttpd does not provide adequate free callback
    if (jsonResponse == NULL) {
-       errMessage = jsonNewMessage (AJG_FATAL,"Request:%d Query=%s SndCard=%d NumId=%d Response=>NULL [please report bug]\n", rqtcount ++, query, request.cardid ,request.numid);
+       errMessage = jsonNewMessage (AJG_FATAL,"Request:%d Query=%s SndCard=%s NumId=%d Response=>NULL [please report bug]\n", rqtcount ++, query, request.cardid ,request.numid);
        goto ExitOnError;
    }
 

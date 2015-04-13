@@ -33,6 +33,7 @@
  #define SET_FORGROUND      106
  #define KILL_PREV_EXIT     107
  #define KILL_PREV_REST     108
+ #define SET_FAKE_MOD       109
 
  #define SET_TCP_PORT       111
  #define SET_ROOT_DIR       112
@@ -72,6 +73,7 @@ static  AJG_options cliOptions [] = {
 
   //  {SET_LOCAL_ONLY   ,0,"localhost"       , "Restric client to localhost"},
   {CHECK_ALSA_CARDS ,0,"checkalsa"       , "List Alsa Sound Card"},
+  {SET_FAKE_MOD     ,0,"fakemod"         , "Fake mode accept/respond request without touching sndcard"},
 
   {DISPLAY_VERSION  ,0,"version"         , "Display version and copyright"},
   {DISPLAY_HELP     ,0,"help"            , "Display this help"},
@@ -371,6 +373,11 @@ int main(int argc, char *argv[])  {
     case SET_cardid:
        if (optarg != 0) goto noValueForOption;
        if (!sscanf (optarg, "%d", &cliconfig.setuid)) goto notAnInteger;
+       break;
+
+    case SET_FAKE_MOD:
+       if (optarg != 0) goto noValueForOption;
+       session->fakemod  = 1;
        break;
 
     case SET_FORGROUND:

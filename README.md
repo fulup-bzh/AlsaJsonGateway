@@ -73,13 +73,13 @@ REST API
            http://localhost:1234/jsonapi?request=ctrl-set-many&cardid=hw:0&quiet=1&numids=[5,6,7,8,8]&value=[10,5,7]
 
      - SESSION_STORE: #! store on disk cardid=hw:0 config under name MySoundConfig
-           http://localhost:1234/jsonapi?request=session-store&cardid=hw:0&session=MySoundConfig
+           http://localhost:1234/jsonapi?request=session-store&cardid=hw:0&session=MySoundConfig  &info={Optional AJG_info session description object}
 
      - SESSION_LIST: #! list existing session on disk for cardid=hw:0
            http://localhost:1234/jsonapi?request=session-list&cardid=hw:0
 
      - SESSION_LOAD: #! upload MySoundConfig session into cardid=hw:0
-           http://localhost:1234/jsonapi?request=session-load&cardid=hw:0&session=MySoundConfig  &info={Optional AJG_info session description object}
+           http://localhost:1234/jsonapi?request=session-load&cardid=hw:0&session=MySoundConfig
 
 WARNING remarks:
 

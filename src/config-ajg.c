@@ -203,7 +203,7 @@ PUBLIC AJG_session *configInit () {
   // stack config handle into session
   session->config = config;
 
-  ajgJsonType = json_object_new_string ("AJG_response");
+  ajgJsonType = json_object_new_string ("AJG_message");
   json_object_get (ajgJsonType); // increase reference count
 
   // initialize JSON constant messages and increase reference count to make them permanent

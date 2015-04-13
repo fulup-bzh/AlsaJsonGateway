@@ -43,6 +43,13 @@ PUBLIC json_object * alsaProbeCard (AJG_session *session, AJG_request *request) 
       snd_ctl_card_info_alloca(&cardinfo);
       int err, index;
 
+      if (session->fakemod) {
+         json_object *fakeresponse;
+         char * sample = "{ 'ajgtype': 'AJG_sndlist', 'status': 'success', 'data': { 'ajgtype': 'AJG_sndcard', 'cardid': 'USB', 'name': 'Scarlett 18i8 USB', 'devid': 'hw:USB', 'driver': 'USB-Audio', 'info': 'Focusrite Scarlett 18i8 USB at usb-0000:00:1a.0-1.4, high speed' } }";
+         fakeresponse = json_tokener_parse (sample);
+         return (fakeresponse);
+      }
+
 	  if (!request->cardid || (err = snd_ctl_open(&handle, request->cardid, 0)) < 0) {
 		 return  jsonNewMessage (AJG_EMPTY, "SndCard [%s] Not Found", request->cardid);
 	  }
@@ -82,6 +89,18 @@ PUBLIC json_object * alsaFindCard (AJG_session *session, AJG_request *request) {
 	int  card;
 	json_object *sndcards, *element, *ajgResponse;
     char cardid[32];
+
+    if (session->fakemod) {
+       json_object *fakeresponse;
+       char *sample;
+       if (request->cardid == NULL) {
+            sample = "{ 'ajgtype': 'AJG_sndlist', 'status': 'success', 'data': [ { 'ajgtype': 'AJG_sndcard', 'cardid': 'PCH', 'name': 'HDA Intel PCH', 'devid': 'hw:0', 'driver': 'HDA-Intel', 'info': 'HDA Intel PCH at 0xe1560000 irq 30' }, { 'ajgtype': 'AJG_sndcard', 'cardid': 'USB', 'name': 'Scarlett 18i8 USB', 'devid': 'hw:1', 'driver': 'USB-Audio', 'info': 'Focusrite Scarlett 18i8 USB at usb-0000:00:1a.0-1.4, high speed' }, { 'ajgtype': 'AJG_sndcard', 'cardid': 'Audio', 'name': 'YAMAHA AP-U70 USB Audio', 'devid': 'hw:2', 'driver': 'USB-Audio', 'info': 'YAMAHA Corporation YAMAHA AP-U70 USB Audio at usb-0000:00:1d.0-1.4, full speed' } ] }";
+       } else {
+       		sample = "{ 'ajgtype': 'AJG_sndlist', 'status': 'success', 'data': { 'ajgtype': 'AJG_sndcard', 'cardid': 'PCH', 'name': 'HDA Intel PCH', 'devid': 'hw:0', 'driver': 'HDA-Intel', 'info': 'HDA Intel PCH at 0xe1560000 irq 30' } }";
+       }
+       fakeresponse = json_tokener_parse (sample);
+       return (fakeresponse);
+    }
 
 
 	// if no specific card requested loop on all
@@ -356,8 +375,10 @@ STATIC json_object * getAlsaControl (snd_hctl_elem_t *elem, snd_ctl_elem_info_t 
 	snd_ctl_elem_type_t elemtype;
 	snd_ctl_elem_value_t *control;
 	snd_ctl_elem_value_alloca(&control);
-
 	int count, idx;
+
+
+
 
 	// allocate ram for ALSA elements
 	snd_ctl_elem_id_alloca   (&elemid);
@@ -489,6 +510,13 @@ PUBLIC json_object *alsaGetControl (AJG_session *session, AJG_request *request) 
 	snd_ctl_elem_info_t *info;
 	json_object *response, *sndctrls, *control;
 
+    if (session->fakemod) {
+       json_object *fakeresponse;
+       char * sample = "{ 'sndcard': { 'ajgtype': 'AJG_sndcard', 'cardid': 'PCH', 'name': 'HDA Intel PCH', 'devid': 'hw:0', 'driver': 'HDA-Intel', 'info': 'HDA Intel PCH at 0xe1560000 irq 30' }, 'ajgtype': 'AJG_ctrls', 'status': 'success', 'data': [ { 'numid': 5, 'name': 'Speaker Playback Switch', 'iface': 'MIXER', 'actif': true, 'value': [ true, true ], 'ctrl': { 'type': 'BOOLEAN', 'count': 2 }, 'acl': { 'read': true, 'write': true, 'inact': false, 'volat': false, 'lock': false, 'tlv': { 'read': false, 'write': false, 'command': false } } } ] }";
+       fakeresponse = json_tokener_parse (sample);
+       return (fakeresponse);
+    }
+
     // Open sound we use Alsa high level API like amixer.c
 	if (!request->cardid || (err = snd_hctl_open(&handle, request->cardid, 0)) < 0) {
 		return (jsonNewMessage (AJG_FAIL,"alsaGetControl cardid=[%s] open fail error=%s\n", request->cardid, snd_strerror(err)));
@@ -505,10 +533,8 @@ PUBLIC json_object *alsaGetControl (AJG_session *session, AJG_request *request) 
 	response = json_object_new_object();
 
 	// add card description to ctrl-get-all response
-	if (request->quiet < 2) {
-	    json_object *sndcard = alsaProbeCard (session, request);
-		json_object_object_add (response,"sndcard",  sndcard);
-	}
+	json_object *sndcard = alsaProbeCard (session, request);
+	json_object_object_add (response,"sndcard",  sndcard);
 
 	// create an json array to hold all sndcard response
 	sndctrls = json_object_new_array();
@@ -528,7 +554,7 @@ PUBLIC json_object *alsaGetControl (AJG_session *session, AJG_request *request) 
 
 	// add response json array to sndcard
 	json_object_object_add (response,"ajgtype", json_object_new_string (AJG_ALSACTL_JTYPE));
-    json_object_object_add (response, "status", jsonNewError(AJG_SUCCESS));
+    json_object_object_add (response,"status", jsonNewError(AJG_SUCCESS));
 	json_object_object_add (response,"data", sndctrls);
 	snd_hctl_close(handle);
 
@@ -546,6 +572,12 @@ PUBLIC json_object *alsaSetOneCtrl (AJG_session *session, AJG_request *request) 
 
     // make standard response only once
     if (okresponse == NULL) okresponse=jsonNewMessage (AJG_SUCCESS, "done");
+
+      // in fakemod we just pretend it works
+      if (session->fakemod) {
+         json_object_get (okresponse);
+         return okresponse;
+      }
 
 	// probe soundcard to check it exist and get it name
 	request->cardhandle = (void*)TRUE; // request for not closing card handle
@@ -591,6 +623,7 @@ PUBLIC json_object *alsaSetOneCtrl (AJG_session *session, AJG_request *request) 
 
     // in quiet mode we only return OK otherwise we request full value of modified control
 	if (request->quiet) {
+        json_object_get (okresponse);
         response = okresponse;
 	} else {
 	    // in verbose mode we return a modified controls
@@ -691,6 +724,9 @@ PUBLIC json_object *alsaSetManyCtrl (AJG_session *session, AJG_request *request)
    const char *cardname;
    unsigned int index, value;
 
+  // in fakemod we just pretend it works
+  if (session->fakemod) jsonNewAjgType();
+
    // probe soundcard to check it exist and get it name
    request->cardhandle = (void*)TRUE; // request for not closing card handle
    sndcard = alsaProbeCard (session, request);
@@ -752,7 +788,7 @@ OnErrorExit:
 
 // load a session for requested card
 PUBLIC json_object *alsaLoadSession (AJG_session *session, AJG_request *request) {
-   json_object *errorMsg, *jsonSession, *sndcard, *element, *cardinfo;
+   json_object *errorMsg, *jsonSession, *sndcard, *element, *cardinfo, *jsonResponse;
    const char *sessionname,*cardname;
    unsigned int index;
 
@@ -786,7 +822,7 @@ PUBLIC json_object *alsaLoadSession (AJG_session *session, AJG_request *request)
    }
 
    // let's get sound card controls out of session
-   if (!json_object_object_get_ex (jsonSession, "controls", &cardinfo)) {
+   if (!json_object_object_get_ex (jsonSession, "data", &cardinfo)) {
        errorMsg =  jsonNewMessage (AJG_FATAL,"session [%s/%s] fail to find 'controls' descriptor ", request->args, request->cardname);
 	   goto OnErrorExit;
    }
@@ -805,16 +841,34 @@ PUBLIC json_object *alsaLoadSession (AJG_session *session, AJG_request *request)
         }
 
         // apply control to sound card ignoring errors
-        (void) alsaSimpleSetCtrl (session, request, ctrlnumid, ctrlvalue);
+        if (!session->fakemod) (void) alsaSimpleSetCtrl (session, request, ctrlnumid, ctrlvalue);
    }
 
    // we done let free jsonSession object
-   json_object_put   (jsonSession);
    json_object_put   (sndcard);
 
    // if we have a valid card handle let's close it
    if (request->cardhandle != (void*)TRUE && request->cardhandle != NULL) snd_ctl_close(request->cardhandle);
-   return jsonNewError (AJG_SUCCESS);
+
+   switch (request->quiet) {
+     case 0:
+          // verbose mode return session object to application
+          jsonResponse = jsonSession;
+          break;
+     case 1:
+          // quiet return only info session
+          json_object_object_get_ex (jsonSession, "info", &jsonResponse);
+          if (jsonResponse != NULL) json_object_get (jsonResponse);
+          else jsonResponse=  jsonNewMessage (AJG_WARNING,"session [%s] Loaded on [%s] but no info data", request->args, request->cardname);
+          json_object_put (jsonSession);
+          break;
+     default:
+          // silent only status message
+          json_object_put (jsonSession); // free session object
+          jsonResponse = jsonNewMessage (AJG_SUCCESS,"session [%s] Loaded on [%s]", request->args, request->cardname);
+   }
+
+   return jsonResponse;
 
 OnErrorExit:
    if (jsonSession) json_object_put (jsonSession);
@@ -829,7 +883,7 @@ OnErrorExit:
 PUBLIC json_object *alsaStoreSession (AJG_session *session, AJG_request *request) {
     json_object *controls, *response;
 
-    request->quiet = 1;  // run quiet mode
+    request->quiet = 2;  // run quiet mode
     controls = alsaGetControl (session, request);
 
     if (request->cardname == NULL) {
