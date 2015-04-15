@@ -224,7 +224,7 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
   	    if (verbose) fprintf (stderr, "%d: alsajson GATEWAY_PING\n", rqtcount);
 
         if (request.cardid == NULL)  jsonResponse = gatewayPing ();
-        else jsonResponse = alsaFindCard (session, &request);
+        else jsonResponse = alsaProbeCard (session, &request);
   	    break;
 
   	case CARD_GET_ALL: // http://localhost:1234/jsonapi?request=card-get-all

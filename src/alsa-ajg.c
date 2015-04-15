@@ -623,7 +623,7 @@ PUBLIC json_object *alsaSetOneCtrl (AJG_session *session, AJG_request *request) 
     // make standard response only once
     if (okresponse == NULL) okresponse=jsonNewMessage (AJG_SUCCESS, "done");
 
-    if (session->fakemod) alsaFakeResponse (session, CTRL_SET_ONE);
+    if (session->fakemod) return alsaFakeResponse (session, CTRL_SET_ONE);
 
 	// probe soundcard to check it exist and get it name
 	request->cardhandle = (void*)TRUE; // request for not closing card handle
