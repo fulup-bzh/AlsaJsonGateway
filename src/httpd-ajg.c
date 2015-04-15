@@ -49,8 +49,8 @@
 #define MAX_POST_SIZE  4096   // maximum size for POST data
 
 
-//  List of Query Commands
 static  json_object * Request2Commands = NULL;
+//  List of HTTP Query Commands
 #define GATEWAY_PING   1
 #define CARD_GET_ALL   2
 #define CARD_GET_ONE   3
@@ -316,6 +316,7 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
    ret = MHD_queue_response (connection, MHD_HTTP_OK, response);
    MHD_destroy_response (response);
    json_object_put (jsonResponse); // decrease reference rqtcount to free the json object
+   if (request.cardname) free (request.cardname); // cardname need to be free
    return ret;
 
 ExitOnError:

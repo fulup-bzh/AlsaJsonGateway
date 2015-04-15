@@ -131,6 +131,10 @@ typedef struct {
   int  fakemod;           // respond to GET/POST request without interacting with sndboard
 } AJG_session;
 
-
+//  List of HTTP Query Commands
+typedef enum  {
+      CARD_GET_NAME, GATEWAY_PING, CARD_GET_ALL, CARD_GET_ONE, CTRL_GET_ALL,
+      CTRL_GET_ONE, CTRL_SET_ONE, CTRL_SET_MANY, SESSION_LIST, SESSION_STORE, SESSION_LOAD
+} AJG_REST_CMD;
 
 #include "proto-def-ajg.h"

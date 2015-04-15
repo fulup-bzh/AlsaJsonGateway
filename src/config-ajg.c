@@ -204,21 +204,20 @@ PUBLIC AJG_session *configInit () {
   session->config = config;
 
   ajgJsonType = json_object_new_string ("AJG_message");
-  json_object_get (ajgJsonType); // increase reference count
 
   // initialize JSON constant messages and increase reference count to make them permanent
   for (idx = 0; idx <= AJG_SUCCESS; idx++) {
      AJG_Error[idx].level = idx;
      AJG_Error[idx].label = ERROR_LABEL [idx];
-     AJG_Error[idx].json  = json_object_new_string (ERROR_LABEL[idx]);
-     json_object_get (AJG_Error[idx].json); // increase reference count
+     AJG_Error[idx].json  = jsonNewMessage (idx, NULL);
   }
 
   return (session);
 }
 
+
 // get JSON object from error level and increase its reference count
-PUBLIC json_object *jsonNewError (AJG_ERROR level) {
+PUBLIC json_object *jsonNewStatus (AJG_ERROR level) {
 
   json_object *target =  AJG_Error[level].json;
   json_object_get (target);
@@ -241,18 +240,21 @@ PUBLIC  json_object *jsonNewMessage (AJG_ERROR level, char* format, ...) {
    const char *serialized;
 
    // format message
-   va_start(args, format);
-   vsnprintf (message, sizeof (message), format, args);
-   va_end(args);
+   if (format != NULL) {
+       va_start(args, format);
+       vsnprintf (message, sizeof (message), format, args);
+       va_end(args);
+   }
 
    ajgResponse = json_object_new_object();
    json_object_object_add (ajgResponse, "ajgtype", jsonNewAjgType ());
-   json_object_object_add (ajgResponse, "status" , jsonNewError (level));
-   json_object_object_add (ajgResponse, "data"   , jsonNewError (AJG_FALSE));
-   json_object_object_add (ajgResponse, "info"   , json_object_new_string (message));
+   json_object_object_add (ajgResponse, "status" , json_object_new_string (ERROR_LABEL[level]));
+   if (format != NULL) {
+        json_object_object_add (ajgResponse, "info"   , json_object_new_string (message));
+   }
    if (verbose) {
-        fprintf (stderr, "AJG:%s [%3d]: ", AJG_Error [level].label, count++);
-        fprintf (stderr, message);
+        fprintf (stderr, "AJG:%-6s [%3d]: ", AJG_Error [level].label, count++);
+        if (format != NULL) fprintf (stderr, message); else fprintf (stderr, "No Message");
         fprintf (stderr, "\n");
    }
 

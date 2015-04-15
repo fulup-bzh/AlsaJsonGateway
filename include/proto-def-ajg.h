@@ -48,10 +48,9 @@ PUBLIC void  httpdStop               (AJG_session *session);
 PUBLIC char *configTime        (void);
 PUBLIC AJG_session *configInit (void);
 PUBLIC json_object *jsonNewMessage (AJG_ERROR level, char* format, ...);
-PUBLIC json_object *jsonNewError (AJG_ERROR level);
+PUBLIC json_object *jsonNewStatus (AJG_ERROR level);
 PUBLIC json_object *jsonNewAjgType (void);
 PUBLIC json_object *jsonNewMessage (AJG_ERROR level, char* format, ...);
 PUBLIC void jsonDumpObject (json_object * jObject);
-
 
 

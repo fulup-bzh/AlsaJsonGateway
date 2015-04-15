@@ -150,7 +150,7 @@ PUBLIC json_object *sessionList (AJG_session *session, AJG_request *request) {
     // everything is OK let's build final response
     ajgResponse = json_object_new_object();
     json_object_object_add (ajgResponse, "ajgtype" , json_object_new_string (AJG_SESSION_JLIST));
-    json_object_object_add (ajgResponse, "status"  , jsonNewError(AJG_SUCCESS));
+    json_object_object_add (ajgResponse, "status"  , jsonNewStatus(AJG_SUCCESS));
     json_object_object_add (ajgResponse, "data"    , sessionsJ);
 
     return (ajgResponse);

@@ -29,14 +29,58 @@
 #include "local-def-ajg.h"
 #include <alsa/asoundlib.h>
 
+
 #define AJG_ALSACTL_JTYPE "AJG_ctrls"
 #define AJG_SNDCARD_JTYPE "AJG_sndcard"
 #define AJG_SNDLIST_JTYPE "AJG_sndlist"
 
-STATIC char *fakeScarlett   = "{ 'ajgtype': 'AJG_sndlist', 'status': 'success', 'data': { 'ajgtype': 'AJG_sndcard', 'cardid': 'USB', 'name': 'Scarlett 18i8 USB', 'devid': 'hw:USB', 'driver': 'USB-Audio', 'info': 'Focusrite Scarlett 18i8 USB at usb-0000:00:1a.0-1.4, high speed' } }";
-STATIC char *fakeSndList    = "{ 'ajgtype': 'AJG_sndlist', 'status': 'success', 'data': [ { 'ajgtype': 'AJG_sndcard', 'cardid': 'PCH', 'name': 'HDA Intel PCH', 'devid': 'hw:0', 'driver': 'HDA-Intel', 'info': 'HDA Intel PCH at 0xe1560000 irq 30' }, { 'ajgtype': 'AJG_sndcard', 'cardid': 'USB', 'name': 'Scarlett 18i8 USB', 'devid': 'hw:1', 'driver': 'USB-Audio', 'info': 'Focusrite Scarlett 18i8 USB at usb-0000:00:1a.0-1.4, high speed' }, { 'ajgtype': 'AJG_sndcard', 'cardid': 'Audio', 'name': 'YAMAHA AP-U70 USB Audio', 'devid': 'hw:2', 'driver': 'USB-Audio', 'info': 'YAMAHA Corporation YAMAHA AP-U70 USB Audio at usb-0000:00:1d.0-1.4, full speed' } ] }";
-STATIC char *fakeSingleCtrl = "{ 'sndcard': { 'ajgtype': 'AJG_sndcard', 'cardid': 'PCH', 'name': 'HDA Intel PCH', 'devid': 'hw:0', 'driver': 'HDA-Intel', 'info': 'HDA Intel PCH at 0xe1560000 irq 30' }, 'ajgtype': 'AJG_ctrls', 'status': 'success', 'data': [ { 'numid': 5, 'name': 'Speaker Playback Switch', 'iface': 'MIXER', 'actif': true, 'value': [ true, true ], 'ctrl': { 'type': 'BOOLEAN', 'count': 2 }, 'acl': { 'read': true, 'write': true, 'inact': false, 'volat': false, 'lock': false, 'tlv': { 'read': false, 'write': false, 'command': false } } } ] }";
+// in fakemod response comes from disk
+STATIC json_object *alsaFakeResponse (AJG_session *session, AJG_REST_CMD fakecmd) {
+    json_object *fakeResponse;
+    char filename[256];
 
+    strncpy (filename, session->config->rootdir, sizeof(filename));
+    strncat (filename, "/fakemod/", sizeof(filename));
+
+    switch (fakecmd) {
+     case  CARD_GET_NAME:
+           strncat (filename, "CARD_GET_NAME", sizeof(filename));
+           break;
+     case  GATEWAY_PING:
+           strncat (filename, "GATEWAY_PING", sizeof(filename));
+           break;
+     case  CARD_GET_ALL:
+           strncat (filename, "CARD_GET_ALL", sizeof(filename));
+           break;
+     case  CARD_GET_ONE:
+           strncat (filename, "CARD_GET_ONE", sizeof(filename));
+           break;
+     case  CTRL_GET_ALL:
+           strncat (filename, "CTRL_GET_ALL", sizeof(filename));
+           break;
+     case  CTRL_GET_ONE:
+           strncat (filename, "CTRL_GET_ONE", sizeof(filename));
+           break;
+     case  CTRL_SET_ONE:
+           strncat (filename, "CTRL_SET_ONE", sizeof(filename));
+           break;
+     case  CTRL_SET_MANY:
+           strncat (filename, "CTRL_SET_MANY", sizeof(filename));
+           break;
+
+     default:
+         jsonNewMessage (AJG_FAIL, "FakeModResponse CMD=%d not supported", fakecmd);
+    }
+
+    // just upload json object and return without any further processing
+    strncat (filename, ".ajg", sizeof(filename));
+    fakeResponse = json_object_from_file (filename);
+
+    // if not fakemessage for this request build an error message
+    if (fakeResponse == NULL) jsonNewMessage (AJG_FAIL, "FakeModResponse file=%s not found or invalid", filename);
+
+    return fakeResponse;
+}
 
 // retreive info for one given card
 PUBLIC json_object * alsaProbeCard (AJG_session *session, AJG_request *request) {
@@ -45,14 +89,18 @@ PUBLIC json_object * alsaProbeCard (AJG_session *session, AJG_request *request) 
       json_object *sndcard;
       snd_ctl_t   *handle;
       snd_ctl_card_info_t *cardinfo;
-      snd_ctl_card_info_alloca(&cardinfo);
       int err, index;
 
+      // fakemode read response from session directory
       if (session->fakemod) {
-         json_object *fakeresponse;
-         fakeresponse = json_tokener_parse (fakeScarlett);
-         return (fakeresponse);
+        json_object *sndname;
+        sndcard = alsaFakeResponse (session, CARD_GET_NAME);
+        json_object_object_get_ex (sndcard, "name", &sndname);
+        request->cardname = strdup (json_object_get_string (sndname));
+      	return (sndcard);
       }
+
+      snd_ctl_card_info_alloca(&cardinfo);
 
 	  if (!request->cardid || (err = snd_ctl_open(&handle, request->cardid, 0)) < 0) {
 		 return  jsonNewMessage (AJG_EMPTY, "SndCard [%s] Not Found", request->cardid);
@@ -96,10 +144,8 @@ PUBLIC json_object * alsaFindCard (AJG_session *session, AJG_request *request) {
 
     if (session->fakemod) {
        json_object *fakeresponse;
-       char *sample;
-       if (request->cardid == NULL) sample = fakeSndList;
-       else sample = fakeScarlett;
-       fakeresponse = json_tokener_parse (sample);
+       if (request->cardid == NULL) fakeresponse = alsaFakeResponse (session, CARD_GET_ALL);
+       else  fakeresponse = alsaFakeResponse (session, CARD_GET_ONE);
        return (fakeresponse);
     }
 
@@ -120,8 +166,9 @@ PUBLIC json_object * alsaFindCard (AJG_session *session, AJG_request *request) {
 
 			// If card probe fail to return cardid check for status
 			if (!json_object_object_get_ex (sndcard, "cardid", &element)) {
-				char *status;
+				const char *status;
 				json_object_object_get_ex (sndcard, "status", &element);
+				status = json_object_get_string (element);
 				if (!strcmp (status, ERROR_LABEL[AJG_FATAL]))  break;
 				continue; // just ignore this entry
 			}
@@ -140,7 +187,7 @@ PUBLIC json_object * alsaFindCard (AJG_session *session, AJG_request *request) {
 
     ajgResponse = json_object_new_object();
     json_object_object_add (ajgResponse, "ajgtype" , json_object_new_string (AJG_SNDLIST_JTYPE));
-    json_object_object_add (ajgResponse, "status"  , jsonNewError(AJG_SUCCESS));
+    json_object_object_add (ajgResponse, "status"  , jsonNewStatus(AJG_SUCCESS));
     json_object_object_add (ajgResponse, "data"    , sndcards);
 
    return (ajgResponse);
@@ -367,7 +414,7 @@ STATIC json_object *  getControlAcl (snd_ctl_elem_info_t *info) {
 
 
 // pack element from ALSA control into a JSON object
-STATIC json_object * getAlsaControl (snd_hctl_elem_t *elem, snd_ctl_elem_info_t *info,  AJG_request *request) {
+STATIC json_object * getAlsaSingleCtrl (snd_hctl_elem_t *elem, snd_ctl_elem_info_t *info,  AJG_request *request) {
 
 	int err;
 	unsigned int *tlv;
@@ -375,13 +422,11 @@ STATIC json_object * getAlsaControl (snd_hctl_elem_t *elem, snd_ctl_elem_info_t 
 	snd_ctl_elem_id_t *elemid;
 	snd_ctl_elem_type_t elemtype;
 	snd_ctl_elem_value_t *control;
-	snd_ctl_elem_value_alloca(&control);
 	int count, idx;
 
 
-
-
 	// allocate ram for ALSA elements
+	snd_ctl_elem_value_alloca(&control);
 	snd_ctl_elem_id_alloca   (&elemid);
 
     // get elemId out of elem
@@ -511,11 +556,16 @@ PUBLIC json_object *alsaGetControl (AJG_session *session, AJG_request *request) 
 	snd_ctl_elem_info_t *info;
 	json_object *response, *sndctrls, *control;
 
-    if (session->fakemod) {
-       json_object *fakeresponse;
-       fakeresponse = json_tokener_parse (fakeSingleCtrl);
-       return (fakeresponse);
-    }
+  	if (session->fakemod) {
+  	   json_object *fakeresponse, *sndname;
+  	   // make sure request->cardname is valid
+  	   fakeresponse = alsaProbeCard (session,request); json_object_put (fakeresponse);
+  	   // get fake response from disk
+  	   if (request->numid < 0) fakeresponse = alsaFakeResponse (session, CTRL_GET_ALL);
+  	   else fakeresponse = alsaFakeResponse (session, CTRL_GET_ONE);
+  	   return fakeresponse;
+  	}
+
 
     // Open sound we use Alsa high level API like amixer.c
 	if (!request->cardid || (err = snd_hctl_open(&handle, request->cardid, 0)) < 0) {
@@ -547,14 +597,14 @@ PUBLIC json_object *alsaGetControl (AJG_session *session, AJG_request *request) 
 		}
 
 		// each control is added into a JSON array
-		control = getAlsaControl (elem, info, request);
+		control = getAlsaSingleCtrl (elem, info, request);
 		if (control) json_object_array_add (sndctrls, control);
 
 	}
 
 	// add response json array to sndcard
 	json_object_object_add (response,"ajgtype", json_object_new_string (AJG_ALSACTL_JTYPE));
-    json_object_object_add (response,"status", jsonNewError(AJG_SUCCESS));
+    json_object_object_add (response,"status", jsonNewStatus(AJG_SUCCESS));
 	json_object_object_add (response,"data", sndctrls);
 	snd_hctl_close(handle);
 
@@ -573,11 +623,7 @@ PUBLIC json_object *alsaSetOneCtrl (AJG_session *session, AJG_request *request) 
     // make standard response only once
     if (okresponse == NULL) okresponse=jsonNewMessage (AJG_SUCCESS, "done");
 
-      // in fakemod we just pretend it works
-      if (session->fakemod) {
-         json_object_get (okresponse);
-         return okresponse;
-      }
+    if (session->fakemod) alsaFakeResponse (session, CTRL_SET_ONE);
 
 	// probe soundcard to check it exist and get it name
 	request->cardhandle = (void*)TRUE; // request for not closing card handle
@@ -724,8 +770,7 @@ PUBLIC json_object *alsaSetManyCtrl (AJG_session *session, AJG_request *request)
    const char *cardname;
    unsigned int index, value;
 
-  // in fakemod we just pretend it works
-  if (session->fakemod) jsonNewAjgType();
+   if (session->fakemod) return alsaFakeResponse (session, CTRL_SET_MANY);
 
    // probe soundcard to check it exist and get it name
    request->cardhandle = (void*)TRUE; // request for not closing card handle
@@ -778,7 +823,8 @@ PUBLIC json_object *alsaSetManyCtrl (AJG_session *session, AJG_request *request)
    		snd_ctl_close(request->cardhandle);
    		if (verbose) fprintf (stderr, "sndcard: %s release\n", request->cardid);
    }
-   return jsonNewAjgType();
+
+   return jsonNewStatus (AJG_SUCCESS);
 
 OnErrorExit:
    if (sndcard) json_object_put (sndcard);
