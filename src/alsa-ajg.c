@@ -33,6 +33,11 @@
 #define AJG_SNDCARD_JTYPE "AJG_sndcard"
 #define AJG_SNDLIST_JTYPE "AJG_sndlist"
 
+STATIC char *fakeScarlett   = "{ 'ajgtype': 'AJG_sndlist', 'status': 'success', 'data': { 'ajgtype': 'AJG_sndcard', 'cardid': 'USB', 'name': 'Scarlett 18i8 USB', 'devid': 'hw:USB', 'driver': 'USB-Audio', 'info': 'Focusrite Scarlett 18i8 USB at usb-0000:00:1a.0-1.4, high speed' } }";
+STATIC char *fakeSndList    = "{ 'ajgtype': 'AJG_sndlist', 'status': 'success', 'data': [ { 'ajgtype': 'AJG_sndcard', 'cardid': 'PCH', 'name': 'HDA Intel PCH', 'devid': 'hw:0', 'driver': 'HDA-Intel', 'info': 'HDA Intel PCH at 0xe1560000 irq 30' }, { 'ajgtype': 'AJG_sndcard', 'cardid': 'USB', 'name': 'Scarlett 18i8 USB', 'devid': 'hw:1', 'driver': 'USB-Audio', 'info': 'Focusrite Scarlett 18i8 USB at usb-0000:00:1a.0-1.4, high speed' }, { 'ajgtype': 'AJG_sndcard', 'cardid': 'Audio', 'name': 'YAMAHA AP-U70 USB Audio', 'devid': 'hw:2', 'driver': 'USB-Audio', 'info': 'YAMAHA Corporation YAMAHA AP-U70 USB Audio at usb-0000:00:1d.0-1.4, full speed' } ] }";
+STATIC char *fakeSingleCtrl = "{ 'sndcard': { 'ajgtype': 'AJG_sndcard', 'cardid': 'PCH', 'name': 'HDA Intel PCH', 'devid': 'hw:0', 'driver': 'HDA-Intel', 'info': 'HDA Intel PCH at 0xe1560000 irq 30' }, 'ajgtype': 'AJG_ctrls', 'status': 'success', 'data': [ { 'numid': 5, 'name': 'Speaker Playback Switch', 'iface': 'MIXER', 'actif': true, 'value': [ true, true ], 'ctrl': { 'type': 'BOOLEAN', 'count': 2 }, 'acl': { 'read': true, 'write': true, 'inact': false, 'volat': false, 'lock': false, 'tlv': { 'read': false, 'write': false, 'command': false } } } ] }";
+
+
 // retreive info for one given card
 PUBLIC json_object * alsaProbeCard (AJG_session *session, AJG_request *request) {
       char  *info, *name;
@@ -45,8 +50,7 @@ PUBLIC json_object * alsaProbeCard (AJG_session *session, AJG_request *request) 
 
       if (session->fakemod) {
          json_object *fakeresponse;
-         char * sample = "{ 'ajgtype': 'AJG_sndlist', 'status': 'success', 'data': { 'ajgtype': 'AJG_sndcard', 'cardid': 'USB', 'name': 'Scarlett 18i8 USB', 'devid': 'hw:USB', 'driver': 'USB-Audio', 'info': 'Focusrite Scarlett 18i8 USB at usb-0000:00:1a.0-1.4, high speed' } }";
-         fakeresponse = json_tokener_parse (sample);
+         fakeresponse = json_tokener_parse (fakeScarlett);
          return (fakeresponse);
       }
 
@@ -93,11 +97,8 @@ PUBLIC json_object * alsaFindCard (AJG_session *session, AJG_request *request) {
     if (session->fakemod) {
        json_object *fakeresponse;
        char *sample;
-       if (request->cardid == NULL) {
-            sample = "{ 'ajgtype': 'AJG_sndlist', 'status': 'success', 'data': [ { 'ajgtype': 'AJG_sndcard', 'cardid': 'PCH', 'name': 'HDA Intel PCH', 'devid': 'hw:0', 'driver': 'HDA-Intel', 'info': 'HDA Intel PCH at 0xe1560000 irq 30' }, { 'ajgtype': 'AJG_sndcard', 'cardid': 'USB', 'name': 'Scarlett 18i8 USB', 'devid': 'hw:1', 'driver': 'USB-Audio', 'info': 'Focusrite Scarlett 18i8 USB at usb-0000:00:1a.0-1.4, high speed' }, { 'ajgtype': 'AJG_sndcard', 'cardid': 'Audio', 'name': 'YAMAHA AP-U70 USB Audio', 'devid': 'hw:2', 'driver': 'USB-Audio', 'info': 'YAMAHA Corporation YAMAHA AP-U70 USB Audio at usb-0000:00:1d.0-1.4, full speed' } ] }";
-       } else {
-       		sample = "{ 'ajgtype': 'AJG_sndlist', 'status': 'success', 'data': { 'ajgtype': 'AJG_sndcard', 'cardid': 'PCH', 'name': 'HDA Intel PCH', 'devid': 'hw:0', 'driver': 'HDA-Intel', 'info': 'HDA Intel PCH at 0xe1560000 irq 30' } }";
-       }
+       if (request->cardid == NULL) sample = fakeSndList;
+       else sample = fakeScarlett;
        fakeresponse = json_tokener_parse (sample);
        return (fakeresponse);
     }
@@ -512,8 +513,7 @@ PUBLIC json_object *alsaGetControl (AJG_session *session, AJG_request *request) 
 
     if (session->fakemod) {
        json_object *fakeresponse;
-       char * sample = "{ 'sndcard': { 'ajgtype': 'AJG_sndcard', 'cardid': 'PCH', 'name': 'HDA Intel PCH', 'devid': 'hw:0', 'driver': 'HDA-Intel', 'info': 'HDA Intel PCH at 0xe1560000 irq 30' }, 'ajgtype': 'AJG_ctrls', 'status': 'success', 'data': [ { 'numid': 5, 'name': 'Speaker Playback Switch', 'iface': 'MIXER', 'actif': true, 'value': [ true, true ], 'ctrl': { 'type': 'BOOLEAN', 'count': 2 }, 'acl': { 'read': true, 'write': true, 'inact': false, 'volat': false, 'lock': false, 'tlv': { 'read': false, 'write': false, 'command': false } } } ] }";
-       fakeresponse = json_tokener_parse (sample);
+       fakeresponse = json_tokener_parse (fakeSingleCtrl);
        return (fakeresponse);
     }
 
