@@ -70,7 +70,7 @@ PUBLIC json_object * alsaProbeCard (AJG_session *session, AJG_request *request) 
 	  json_object_object_add (sndcard, "name"    , json_object_new_string (name));
 
 	  if (!request->quiet) {
-          json_object_object_add (sndcard, "devid"   , json_object_new_string (request->cardid));
+          json_object_object_add (sndcard, "devid" , json_object_new_string (request->cardid));
 	  	  driver= snd_ctl_card_info_get_driver(cardinfo);
           json_object_object_add (sndcard, "driver"  , json_object_new_string (driver));
 		  info  = strdup(snd_ctl_card_info_get_longname (cardinfo));
