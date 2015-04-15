@@ -631,7 +631,7 @@ PUBLIC json_object *alsaSetOneCtrl (AJG_session *session, AJG_request *request) 
         response = alsaGetControl (session, request);
 	}
 
-ExitNow:
+ExitNow: // also used for normal exit
     snd_ctl_close(request->cardhandle);
 	return response;
 }
@@ -774,7 +774,10 @@ PUBLIC json_object *alsaSetManyCtrl (AJG_session *session, AJG_request *request)
    json_object_put   (sndcard);
 
    // if we have a valid card handle let's close it
-   if (request->cardhandle != (void*)TRUE && request->cardhandle != NULL) snd_ctl_close(request->cardhandle);
+   if (request->cardhandle != (void*)TRUE && request->cardhandle != NULL) {
+   		snd_ctl_close(request->cardhandle);
+   		if (verbose) fprintf (stderr, "sndcard: %s release\n", request->cardid);
+   }
    return jsonNewAjgType();
 
 OnErrorExit:
@@ -848,7 +851,10 @@ PUBLIC json_object *alsaLoadSession (AJG_session *session, AJG_request *request)
    json_object_put   (sndcard);
 
    // if we have a valid card handle let's close it
-   if (request->cardhandle != (void*)TRUE && request->cardhandle != NULL) snd_ctl_close(request->cardhandle);
+   if (request->cardhandle != (void*)TRUE && request->cardhandle != NULL) {
+   		snd_ctl_close(request->cardhandle);
+   		if (verbose) fprintf (stderr, "sndcard: %s release\n", request->cardid);
+   }
 
    switch (request->quiet) {
      case 0:
