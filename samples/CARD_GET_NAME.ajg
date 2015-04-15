@@ -1,0 +1,1 @@
+{ "ajgtype": "AJG_sndcard", "cardid": "USB", "name": "Scarlett 18i8 USB", "devid": "hw:USB", "driver": "USB-Audio", "info": "Focusrite Scarlett 18i8 USB at usb-0000:00:1a.0-1.4, high speed" }
