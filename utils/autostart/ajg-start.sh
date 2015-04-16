@@ -60,7 +60,7 @@ pkill $DAEMON
 $BINDIR/$DAEMON $OPTIONS --port=$PORT --rootdir=$ROOTDIR --sessiondir=$SESSIONDIR --daemon
 
 while true; do
-  wget --output-document /tmp/ping.ajg http://localhost:$PORT/jsonapi?request=ping-get
+  wget --quiet --output-document /tmp/ping.ajg http://localhost:$PORT/jsonapi?request=ping-get
   if test $? -ne 0; then
      echo "AJG server $HOSTNAME fail to response [try restart]" | mail -s Restarting AJG on $HOSTNAME $EMAIL
      $BINDIR/$DAEMON $OPTIONS --port=$PORT --rootdir=$ROOTDIR --sessiondir=$SESSIONDIR --daemon --restart
