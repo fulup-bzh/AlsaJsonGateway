@@ -40,9 +40,9 @@ else
 fi
 
 # Overload default with config file
-if test -f `dirname $0`/start.conf; then
-    echo "using `dirname $0`/start.conf"
-    source `dirname $0`/start.conf
+if test -f $SESSIONDIR/AJG-autostart.conf; then
+    echo "using $SESSIONDIR/AJG-autostart.conf"
+    source $SESSIONDIR/AJG-autostart.conf
 fi
 
 if test -z "FAKEMOD"; then
