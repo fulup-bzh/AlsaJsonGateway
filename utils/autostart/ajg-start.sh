@@ -21,7 +21,7 @@ echo BASEDIR=$BASEDIR
 
 
 # check if we are in dev mod with AlsaMixer in the same parent directory
-if test -d $BASEDIR/../AlsaJsonMixer/www; then
+if test -d $BASEDIR/../../AlsaJsonMixer/www; then
  BINDIR=$BASEDIR/built
 
  ROOTDIR=$BASEDIR/../AlsaJsonMixer/www
