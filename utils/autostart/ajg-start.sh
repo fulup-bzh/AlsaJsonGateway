@@ -10,6 +10,7 @@ CHKTIME=20  # check AJG every xxx seconds
 DAEMON=ajg-daemon
 FAKEMOD=--fakemod    # comment for realmod
 VERBOSE=--verbose
+OPTIONS= $FAKEMOD $VERBOSE
 
 
 BASEDIR=`dirname $0`/..
@@ -53,13 +54,13 @@ fi
 pkill $DAEMON
 
 # start a background instance of AJG
-$BINDIR/$DAEMON $VERBOSE $FAKEMOD --port=$PORT --rootdir=$ROOTDIR --sessiondir=$SESSIONDIR --daemon
+$BINDIR/$DAEMON $OPTIONS --port=$PORT --rootdir=$ROOTDIR --sessiondir=$SESSIONDIR --daemon
 
 while true; do
   wget --output-document /tmp/ping.ajg http://localhost:1234/jsonapi?request=ping-get
   if test $? -ne 0; then
      echo "AJG server fail to response [try restart]" | mail -s Restarting AJG on `hostname` $EMAIL
-     $BINDIR/$DAEMON $VERBOSE $FAKEMOD --port=$PORT --rootdir=$ROOTDIR --sessiondir=$SESSIONDIR --daemon --restart
+     $BINDIR/$DAEMON $OPTIONS --port=$PORT --rootdir=$ROOTDIR --sessiondir=$SESSIONDIR --daemon --restart
   fi
   sleep $CHKTIME
 done
