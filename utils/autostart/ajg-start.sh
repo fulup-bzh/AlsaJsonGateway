@@ -12,7 +12,7 @@ DAEMON=ajg-daemon
 # Comment unwanted options
 FAKEMOD="--fakemod"
 VERBOSE="--verbose"
-OPTIONS=$FAKEMOD $VERBOSE
+OPTIONS="$FAKEMOD $VERBOSE"
 
 
 BASEDIR=`dirname $0`/../..
