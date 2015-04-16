@@ -46,7 +46,6 @@ install: all
 	@mkdir -p $(DESDIR)/www
 	@install $(BUILT)/ajg-daemon $(DESDIR)/bin
 	@(cd /usr/local/bin; ln -fs $(DESDIR)/bin/* .)
-	@chmod a+rx $(DESDIR)/etc/*.sh
 	@echo ========================================================
 	@echo  AJG install OK [check with ajg-daemon --help]
 	@echo ========================================================
