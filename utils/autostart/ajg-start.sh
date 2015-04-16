@@ -6,8 +6,9 @@
 
 EMAIL=fulup@breizhme.net
 PORT=1234
-CHKTIME=20  # check AJG every xxx seconds
+CHKTIME=600  # check AJG every xxx seconds
 DAEMON=ajg-daemon
+HOSTNAME=`hostname`
 
 # Comment unwanted options
 FAKEMOD="--fakemod"
@@ -61,7 +62,7 @@ $BINDIR/$DAEMON $OPTIONS --port=$PORT --rootdir=$ROOTDIR --sessiondir=$SESSIONDI
 while true; do
   wget --output-document /tmp/ping.ajg http://localhost:$PORT/jsonapi?request=ping-get
   if test $? -ne 0; then
-     echo "AJG server fail to response [try restart]" | mail -s Restarting AJG on `hostname` $EMAIL
+     echo "AJG server $HOSTNAME fail to response [try restart]" | mail -s Restarting AJG on $HOSTNAME $EMAIL
      $BINDIR/$DAEMON $OPTIONS --port=$PORT --rootdir=$ROOTDIR --sessiondir=$SESSIONDIR --daemon --restart
   fi
   sleep $CHKTIME
