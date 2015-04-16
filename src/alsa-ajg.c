@@ -742,9 +742,7 @@ STATIC AJG_ERROR alsaSimpleSetCtrl(AJG_session *session, AJG_request *request, j
 	   fprintf (stderr,"AJG: Fail numid=%2d values=%s write error: %s\n", numid, json_object_to_json_string(ctrlvalue),snd_strerror(err));
 	   return AJG_FAIL;
 	}
-
 	return (AJG_SUCCESS);
-
 }
 
 // open sndcard to get its name and request existing session for this card
