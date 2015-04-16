@@ -62,7 +62,7 @@ $BINDIR/$DAEMON $OPTIONS --port=$PORT --rootdir=$ROOTDIR --sessiondir=$SESSIONDI
 while true; do
   wget --quiet --output-document /tmp/ping.ajg http://localhost:$PORT/jsonapi?request=ping-get
   if test $? -ne 0; then
-     echo "AJG server $HOSTNAME fail to response [try restart]" | mail -s Restarting AJG on $HOSTNAME $EMAIL
+     echo "AJG server $HOSTNAME fail to response [try restart]" | mail -s "Restarting AJG on $HOSTNAME" $EMAIL
      $BINDIR/$DAEMON $OPTIONS --port=$PORT --rootdir=$ROOTDIR --sessiondir=$SESSIONDIR --daemon --restart
   fi
   sleep $CHKTIME
