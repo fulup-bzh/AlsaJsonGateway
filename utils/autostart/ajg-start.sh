@@ -15,13 +15,13 @@ VERBOSE="--verbose"
 OPTIONS=$FAKEMOD $VERBOSE
 
 
-BASEDIR=`dirname $0`/..
+BASEDIR=`dirname $0`/../..
 cd $BASEDIR;  BASEDIR=`pwd`
 echo BASEDIR=$BASEDIR
 
 
 # check if we are in dev mod with AlsaMixer in the same parent directory
-if test -d $BASEDIR/../../AlsaJsonMixer/www; then
+if test -d $BASEDIR/../AlsaJsonMixer/www; then
  BINDIR=$BASEDIR/built
 
  ROOTDIR=$BASEDIR/../AlsaJsonMixer/www
