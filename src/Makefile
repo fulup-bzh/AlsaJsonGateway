@@ -42,12 +42,10 @@ distrib: clean
 
 install: all
 	mkdir -p $(DESDIR)
-	@mkdir -p $(DESDIR)/etc
 	@mkdir -p $(DESDIR)/bin
 	@mkdir -p $(DESDIR)/www
 	@install $(BUILT)/ajg-daemon $(DESDIR)/bin
 	@(cd /usr/local/bin; ln -fs $(DESDIR)/bin/* .)
-	@cp -f --update ../etc/* $(DESDIR)/etc
 	@chmod a+rx $(DESDIR)/etc/*.sh
 	@echo ========================================================
 	@echo  AJG install OK [check with ajg-daemon --help]
