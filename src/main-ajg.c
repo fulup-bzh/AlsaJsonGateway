@@ -420,6 +420,9 @@ int main(int argc, char *argv[])  {
   // Create session config
   configInit (/* session & config are initialized globally */);
 
+  // if exist merge config file with CLI arguments
+  configLoadFile  (session, &cliconfig);
+
   // ------------------ sanity check ----------------------------------------
   if  ((session->background) && (session->foreground)) {
     fprintf (stderr, "%s ERR: cannot select foreground & background at the same time\n",configTime());
@@ -434,10 +437,10 @@ int main(int argc, char *argv[])  {
 
   // -------------- Try to kill any previsou process if asked ---------------------
   if (session->killPrevious) {
-    pid = readPidFile (&cliconfig);  // enforce commandline option
+    pid = readPidFile (session->config);  // enforce commandline option
     switch (pid) {
     case -1:
-      fprintf (stderr, "%s ERR:main --kill ignored no PID file [%s]\n",configTime(), cliconfig.pidfile);
+      fprintf (stderr, "%s ERR:main --kill ignored no PID file [%s]\n",configTime(), session->config->pidfile);
       break;
     case 0:
       fprintf (stderr, "%s ERR:main --kill ignored no active alsajson-gw process\n",configTime());
@@ -455,7 +458,6 @@ int main(int argc, char *argv[])  {
 
     if (session->killPrevious >= 2) goto normalExit;
   } // end killPrevious
-
 
 
   // ------------------ clean exit on CTR-C signal ------------------------
@@ -478,8 +480,7 @@ int main(int argc, char *argv[])  {
 
   // ------------------ Finaly Process Commands -----------------------------
 
-   // if exist merge config file with CLI arguments
-   configLoadFile  (session, &cliconfig);
+
 
    // if --save then store config on disk upfront
    if (session->configsave) configStoreFile (session);
@@ -533,7 +534,7 @@ int main(int argc, char *argv[])  {
       if (pid == 0) {
 
  	     printf ("\nAJG: background mode [pid:%d console:%s]\n", getpid(),session->config->console);
- 	     if (verbose) printf ("AJG:info use '%s --kill --pidfile=%s' # to exit daemon\n", programName,session->config->pidfile);
+ 	     if (verbose) printf ("AJG:info use '%s --restart --rootdir=%s # [--pidfile=%s] to restart daemon\n", programName,session->config->rootdir, session->config->pidfile);
 
          // redirect default I/O on console
          close (2); dup(consoleFD);  // redirect stderr

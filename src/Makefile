@@ -5,7 +5,7 @@
 # -----------------------------------------------------
 
 VERSION=0.1
-DESDIR=/opt/alsa-json-gateway
+DESDIR=/opt/ajg-daemon
 
 CCFLAGS=`pkg-config --cflags alsa libmicrohttpd json-c`
 LDFLAGS=`pkg-config --libs alsa libmicrohttpd json-c`
@@ -21,37 +21,38 @@ OBJECTS= $(BUILT)/main-ajg.o $(BUILT)/config-ajg.o $(BUILT)/httpd-ajg.o $(BUILT)
 $(BUILT)/%.o: %.c ../include/local-def-ajg.h ../include/proto-def-ajg.h
 	$(CC) -c -o $@ $<
 
-all: $(BUILT)/alsajson-gw
+all: $(BUILT)/ajg-daemon
 
-$(BUILT)/alsajson-gw: $(OBJECTS)
+$(BUILT)/ajg-daemon: $(OBJECTS)
 	$(LD) $(EXTRALIBS) -o $@ $(OBJECTS)
 
 clean:
 	$(RM) http $(OBJECTS) core *~
 
 testmem: all
-	valgrind $(BUILT)/alsajson-gw --verbose --rootdir=$(HOME)/Documents/WorkSpace/AlsaJsonMixer/www --save
+	valgrind $(BUILT)/ajg-daemon --verbose --rootdir=$(HOME)/Documents/WorkSpace/AlsaJsonMixer/www --save
 
 debug: all
 	echo --verbose --rootdir=$(HOME)/Documents/WorkSpace/AlsaJsonMixer/www --save
-	gdb  $(BUILT)/alsajson-gw
+	gdb  $(BUILT)/ajg-daemon
 
 distrib: clean
 	cd .. ; rm -f http-$(VERSION); ln -s http-2.x http-$(VERSION)
 	cd .. ; tar -czvhf http-$(VERSION).tgz http-$(VERSION)
 
+install: all
+	mkdir -p $(DESDIR)
+	@mkdir -p $(DESDIR)/etc
+	@mkdir -p $(DESDIR)/bin
+	@mkdir -p $(DESDIR)/www
+	@install $(BUILT)/ajg-daemon $(DESDIR)/bin
+	@(cd /usr/local/bin; ln -fs $(DESDIR)/bin/* .)
+	@cp -f --update ../etc/* $(DESDIR)/etc
+	@chmod a+rx $(DESDIR)/etc/*.sh
+	@echo ========================================================
+	@echo  AJG install OK [check with ajg-daemon --help]
+	@echo ========================================================
+
 update: $(DIST)/http
 	cp mixer-server $(DESDIR)/bin
 
-install: http
-	echo installing http in $(DESDIR)
-	mkdir -p    /var/log/http
-	mkdir -p    /var/run/http
-	mkdir -p    $(DESDIR)/bin
-	mkdir -p    $(DESDIR)/etc
-	cp http   $(DESDIR)/bin
-	@if test -f $(DESDIR)/etc/http.conf; then cp --update $(DESDIR)/etc/http.conf $(DESDIR)/etc/http.sav; fi
-	cp --update http.conf $(DESDIR)/etc
-	@if test ! -f /etc/http.conf; then ln -sf $(DESDIR)/etc/http.conf /etc; fi
-	cp Tools/http.rc /etc/init.d/http
-	ln -sf /etc/init.d/http /etc/rc.d/rc5.d/S99http

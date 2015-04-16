@@ -37,17 +37,17 @@ Building [Linux Only]
        * OpenSuse:              sudo zypper install json-c-devel libmicrohttpd-devel alsa-lib-devel
        * Ubuntu/Mint/Debian:    sudo apt-get install json-c.dev libmicrohttpd.dev libasound2-dev
 
-    3) cd src; make;   # Alpha version does not have installation process.
+    3) cd src; make install;   # Alpha version does not have installation process.
 
 Starting alsa-json-gateway
 
       export AJW_DIR=$HOME/AJW; mkdir $AJW_DIR
-      ../built/alsajson-gw --help                                                        # get options
-      ../built/alsajson-gw --rootdir=$AJW_DIR --verbose --port=1234                      # run foreground in verbose mode
-      ../built/alsajson-gw --config=$AJW_DIR/AJG-config.json --rootdir=AJW_DIR  --save   # run save config
-      ../built/alsajson-gw --config=AJW_DIR/AJG-config.json  --daemon                    # run in background mode
-      ../built/alsajson-gw --config=AJW_DIR/AJG-config.json  --kill                      # kill current AJG daemon
-      ../built/alsajson-gw --config=AJW_DIR/AJG-config.json  --fakemod                   # simulate sndcard ignoring set/get control
+      ajg-daemon --help                                                        # get options
+      ajg-daemon --rootdir=$AJW_DIR --verbose --port=1234                      # run foreground in verbose mode
+      ajg-daemon --config=$AJW_DIR/AJG-config.json --rootdir=AJW_DIR  --save   # run save config
+      ajg-daemon --config=AJW_DIR/AJG-config.json  --daemon                    # run in background mode
+      ajg-daemon --config=AJW_DIR/AJG-config.json  --kill                      # kill current AJG daemon
+      ajg-daemon --config=AJW_DIR/AJG-config.json  --fakemod                   # simulate sndcard ignoring set/get control
 
 REST API
      - GENERIC Arguments
