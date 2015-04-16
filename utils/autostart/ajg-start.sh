@@ -8,9 +8,11 @@ EMAIL=fulup@breizhme.net
 PORT=1234
 CHKTIME=20  # check AJG every xxx seconds
 DAEMON=ajg-daemon
-FAKEMOD=--fakemod    # comment for realmod
-VERBOSE=--verbose
-OPTIONS= $FAKEMOD $VERBOSE
+
+# Comment unwanted options
+FAKEMOD="--fakemod"
+VERBOSE="--verbose"
+OPTIONS=$FAKEMOD $VERBOSE
 
 
 BASEDIR=`dirname $0`/..
