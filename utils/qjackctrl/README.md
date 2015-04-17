@@ -11,24 +11,32 @@ Operations to verify your configuration
   ./Install-QjackCtrl.sh
 
 1) Find the name of your sound card
-   play -l" [default card is hw:USB]
+   ./QjackCtrl.sh action=list
 
 2) Make sure no existing jackd server already lock your audio device
  - QjackCtrl.sh  alsadev=hw:USB  action=kill    # hard kill on any jackd/jackdbus instance
- - QjackCtrl.sh  alsadev=hw:USB  action=check   # sanity check of your environment
+ - QjackCtrl.sh  alsaname=scarlett  action=check   # sanity check of your environment
 
 3) Start your jacdbus server
  - QjackCtrl.sh  alsadev=hw:USB  action=start   # start jackdbus instance 
- - QjackCtrl.sh  alsadev=hw:USB  action=connect # connect midi devices and PulseAudio to Jackdbus
+ - QjackCtrl.sh  alsaname=scarlett  action=connect # connect midi devices and PulseAudio to Jackdbus
 
 4) verify your server is effectively started
-- QjackCtrl.sh  alsadev=hw:USB  action=status  # check jackdbus running status and locked audio resources
+- QjackCtrl.sh  alsaname=intel  action=status  # check jackdbus running status and locked audio resources
 
 4) Stop your server
  - QjackCtrl.sh  alsadev=hw:USB  action=stop    # stop jackdbus and midi bridge
 
 5) Store your config when your happy with your preferences
  - QjackCtrl.sh  alsadev=hw:USB  action=config  # store preferences in $HOME/.config/jack
+
+Note: alsaname is a selector on your card descriptor and not a real device ID.
+Because ALSA change device ID when you plug/unplug USB boards it is almost impossible to track devices by cardid.
+You should choose an "alsaname" that is strong enough to find your board in any situation.
+For exemple "alsaname=USB" may work one day, but not the other. On the other hand
+'alsadev=yamaha' if you have only one yamaha sound board should be fine even on long run.
+alsaname has precedence on alsadev. A new alsadev will be recomputed dynamically each time you
+restart QjackCtrl.sh
 
 
 Configure script inside QjackCtrl GUI 
