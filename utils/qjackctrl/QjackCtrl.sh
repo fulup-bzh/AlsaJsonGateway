@@ -70,6 +70,7 @@ if test -f $CONFDIR/QjackCtrlSH.conf; then
    source $CONFDIR/QjackCtrlSH.conf
 fi
 
+mkdir -p $HOME/.config/jack
 if test -f $HOME/.config/jack/QjackCtrlSH.conf; then
   source $HOME/.config/jack/QjackCtrlSH.conf
 fi
