@@ -34,7 +34,7 @@ Building [Linux Only]
        c: json-c-dev
 
        * Centos/Redhat/Fedora:  sudo yum install json-c-devel libmicrohttpd-devel alsa-lib-devel
-       * OpenSuse:              sudo zypper install json-c-devel libmicrohttpd-devel alsa-lib-devel
+       * OpenSuse:              sudo zypper install libjson-c-devel libmicrohttpd-devel alsa-lib-devel
        * Ubuntu/Mint/Debian:    sudo apt-get install json-c.dev libmicrohttpd.dev libasound2-dev
 
     3) cd src; make install;   # Alpha version does not have installation process.

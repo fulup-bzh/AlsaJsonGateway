@@ -63,7 +63,7 @@ static  AJG_options cliOptions [] = {
   {KILL_PREV_REST   ,0,"restart"         , "Kill active process if any and restart"},
 
   {SET_TCP_PORT     ,1,"port"            , "HTTP listening TCP port  [default 1234]"},
-  {SET_ROOT_DIR     ,1,"rootdir"         , "HTTP Root Directory [default $PWD/public"},
+  {SET_ROOT_DIR     ,1,"rootdir"         , "HTTP Root Directory [default $HOME/.ajg"},
   {SET_CACHE_TO     ,1,"cache-eol"       , "Client cache end of live [default 3600s]"},
   {SET_cardid          ,1,"setuid"          , "Change user id [default don't change]"},
   {SET_PID_FILE     ,1,"pidfile"         , "PID file path [default none]"},
@@ -228,9 +228,6 @@ static void listenLoop (AJG_session *session) {
 
   // ------ Start httpd server
   if (session->config->httpdPort > 0) {
-
-       // if no rootdir let's use current dir
-       if (session->config->rootdir == NULL) session->config->rootdir=getcwd(NULL,0);
 
         err = httpdStart (session);
         if (err != AJG_SUCCESS) return;
@@ -497,14 +494,14 @@ int main(int argc, char *argv[])  {
 
     // check session dir and create if it does not exist
     if (sessionCheckdir (session) != AJG_SUCCESS) goto errSessiondir;
-    if (verbose) fprintf (stderr, "AJG: Init config done\n");
+    if (verbose) fprintf (stderr, "AJG:notice Init config done\n");
 
 
 
     // ---- run in foreground mode --------------------
     if (session->foreground) {
 
-        if (verbose) fprintf (stderr,"AJG: Foreground mode\n");
+        if (verbose) fprintf (stderr,"AJG:notice Foreground mode\n");
 
         // write a pid file for --kill-previous and --raise-debug option
         status = writePidFile (session->config, getpid());

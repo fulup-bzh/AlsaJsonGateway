@@ -450,7 +450,7 @@ PUBLIC AJG_ERROR httpdStart (AJG_session *session) {
   // at 1st call initialise http api hashtable
   if (Request2Commands == NULL) initService (session);
 
-  if (verbose) printf ("starting http port=%d rootdir=%s\n", session->config->httpdPort, session->config->rootdir);
+  if (verbose) printf ("AJG:notice Starting http port=%d rootdir=%s\n", session->config->httpdPort, session->config->rootdir);
 
   session->httpd = (void*) MHD_start_daemon (
 			MHD_USE_SELECT_INTERNALLY | MHD_USE_DEBUG, // use request and not threads
@@ -474,17 +474,17 @@ PUBLIC AJG_ERROR httpdLoop (AJG_session *session) {
 
     initService(session); // initialise http static data
 
-    if (verbose) fprintf (stderr, "AJG: entering httpd waiting loop\n");
+    if (verbose) fprintf (stderr, "AJG:notice entering httpd waiting loop\n");
     if (session->foreground) {
 
         while (TRUE)  {
-            fprintf (stderr, "AJG: Use Ctrl-C to quit");
+            fprintf (stderr, "AJG:notice Use Ctrl-C to quit");
             (void)getc (stdin);
         }
     } else {
         while (TRUE) {
            sleep (3600);
-           if (verbose) fprintf (stderr, "AJG:info httpd alive [%d]\n", count++);
+           if (verbose) fprintf (stderr, "AJG:notice httpd alive [%d]\n", count++);
         }
     }
 

@@ -55,6 +55,7 @@ PUBLIC char * configTime (void) {
 // loaf config from disk and merge with CLI option
 PUBLIC AJG_ERROR configLoadFile (AJG_session * session, AJG_config *cliconfig) {
    static char cacheTimeout [10];
+   int fd;
    json_object * ajgConfig, *value;
 
    // default HTTP port
@@ -66,9 +67,15 @@ PUBLIC AJG_ERROR configLoadFile (AJG_session * session, AJG_config *cliconfig) {
    else session->config->cacheTimeout=cliconfig->cacheTimeout;
 
    if (cliconfig->rootdir == NULL) {
-       session->config->rootdir = malloc (512);
-       getcwd(session->config->rootdir, 512);
-       strncat (session->config->rootdir, "/public",512);
+       session->config->rootdir = getenv("AJGDIR");
+       if (session->config->rootdir == NULL) {
+           session->config->rootdir = malloc (512);
+           strncpy  (session->config->rootdir, getenv("HOME"),512);
+           strncat (session->config->rootdir, "/.ajg",512);
+       }
+
+       // if directory does not exist createit
+       mkdir (session->config->rootdir,  O_RDWR | S_IRWXU | S_IRGRP);
    } else {
        session->config->rootdir =  cliconfig->rootdir;
    }
@@ -110,8 +117,14 @@ PUBLIC AJG_ERROR configLoadFile (AJG_session * session, AJG_config *cliconfig) {
    }
 
    // just upload json object and return without any further processing
+   if((fd = open(session->config->configfile, O_RDONLY)) < 0) {
+      if (verbose) fprintf (stderr, "AJG:warning: config at %s: %s\n", session->config->configfile, strerror(errno));
+      if (ajgConfig == NULL) return AJG_EMPTY;
+   }
+
+   // openjson from FD is not public we need to reopen it !!!
+   close(fd);
    ajgConfig = json_object_from_file (session->config->configfile);
-   if (ajgConfig == NULL) return AJG_EMPTY;
 
    // check it is an AJG_config
    if (json_object_object_get_ex (ajgConfig, "ajgtype", &value)) {
