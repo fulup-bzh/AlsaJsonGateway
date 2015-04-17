@@ -203,7 +203,7 @@ PUBLIC AJG_session *configInit () {
 
   AJG_session *session;
   AJG_config  *config;
-  int idx;
+  int idx, verbosesav;
 
 
   session = malloc (sizeof (AJG_session));
@@ -219,12 +219,14 @@ PUBLIC AJG_session *configInit () {
   ajgJsonType = json_object_new_string ("AJG_message");
 
   // initialize JSON constant messages and increase reference count to make them permanent
+  verbosesav = verbose;
+  verbose = 0;  // run initialisation in silent mode
   for (idx = 0; idx <= AJG_SUCCESS; idx++) {
      AJG_Error[idx].level = idx;
      AJG_Error[idx].label = ERROR_LABEL [idx];
      AJG_Error[idx].json  = jsonNewMessage (idx, NULL);
   }
-
+  verbose = verbosesav;
   return (session);
 }
 
