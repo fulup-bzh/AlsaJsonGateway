@@ -52,8 +52,9 @@
 # 
 servername=default     ;# "using anything else than default will make your life more complex $JACK_DEFAULT_SERVER"
 alsadev=hw:0           ;# "can be found with aplay -L"
+alsaname=""            ;# "can be found with cat /proc/asound/cards
 alsarate=44100         ;# "44100 48000 96000"
-jackrate=2             ;# "should be 3 for USB and 2 for PCI"
+jackrate=3             ;# "should be 3 for USB and 2 for PCI"
 jackperiod=1024        ;# "should be 64,128,256,1024,2048,4096"
 pulsedebug=1           ;# "PulseAudio Log level {4} mini when debuging"
 rtkitgroup=audio       ;# "This group must have realtime access in /etc/security/limits.conf"
@@ -136,6 +137,13 @@ else
   export JACK_DEFAULT_SERVER="$servername"
 fi
 USER_UID=`id -u`
+
+# if card was given by name find coresponding cardid
+if ! test -z "$alsaname"; then
+ SNDCARD=`cat /proc/asound/cards | grep  '\[.*\]' | grep -i $alsaname`
+ SNDID=`echo $SNDCARD | awk '{print $1}'`
+ alsadev=hw:$SNDID
+fi
 
 
 case "$action" in
@@ -389,6 +397,11 @@ restart)
    $0 start
    ;;
 
+
+list)
+   cat /proc/asound/cards | grep -e '\[.*\]'
+   ;;
+
 config)
    # write user preference in $/home/config/jack/QjackCtrlSH.conf
  
@@ -404,6 +417,7 @@ config)
    echo "jackperiod=$jackperiod    # should be 64,128,256,1024,2048,4096"         >>$CONFIG
    echo "pulsedebug=$pulsedebug    # PulseAudio Log level 1-4 mini when debuging" >>$CONFIG
    echo "rtkitgroup=$rtkitgroup    # Must be in /etc/security/limits.conf"        >>$CONFIG
+   echo "alsaname=$alsaname        # Devicename has precedence on alsadev"        >>$CONFIG
    ;;
 
  *)
