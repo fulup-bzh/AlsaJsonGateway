@@ -129,6 +129,7 @@ typedef struct {
   char *cacheTimeout;     // http require timeout to be a string
   void *httpd;            // anonymous structure for httpd handler
   int  fakemod;           // respond to GET/POST request without interacting with sndboard
+  int  forceexit;         // when autoconfig from script force exit before starting server
 } AJG_session;
 
 //  List of HTTP Query Commands

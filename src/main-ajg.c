@@ -43,6 +43,7 @@
  #define SET_SESSION_DIR    116
  #define SET_CONFIG_FILE    117
  #define SET_CONFIG_SAVE    118
+ #define SET_CONFIG_EXIT    119
 
  #define SET_LOCAL_ONLY     120
  #define CHECK_ALSA_CARDS   121
@@ -65,11 +66,12 @@ static  AJG_options cliOptions [] = {
   {SET_TCP_PORT     ,1,"port"            , "HTTP listening TCP port  [default 1234]"},
   {SET_ROOT_DIR     ,1,"rootdir"         , "HTTP Root Directory [default $HOME/.ajg"},
   {SET_CACHE_TO     ,1,"cache-eol"       , "Client cache end of live [default 3600s]"},
-  {SET_cardid          ,1,"setuid"          , "Change user id [default don't change]"},
+  {SET_cardid       ,1,"setuid"          , "Change user id [default don't change]"},
   {SET_PID_FILE     ,1,"pidfile"         , "PID file path [default none]"},
   {SET_SESSION_DIR  ,1,"sessiondir"      , "Sessions file path [default rootdir/sessions]"},
   {SET_CONFIG_FILE  ,1,"config"          , "Config Filename [default rootdir/sessions/configs/default.ajg]"},
   {SET_CONFIG_SAVE  ,0,"save"            , "Save config on disk [default no]"},
+  {SET_CONFIG_EXIT  ,0,"saveonly"        , "Save config on disk and then exit"},
 
   //  {SET_LOCAL_ONLY   ,0,"localhost"       , "Restric client to localhost"},
   {CHECK_ALSA_CARDS ,0,"checkalsa"       , "List Alsa Sound Card"},
@@ -361,6 +363,11 @@ int main(int argc, char *argv[])  {
        if (!sscanf (optarg, "%d", &cliconfig.cacheTimeout)) goto notAnInteger;
        break;
 
+    case SET_CONFIG_EXIT:
+       if (optarg != 0) goto noValueForOption;
+       session->configsave  = 1;
+       session->forceexit   = 1;
+       break;
 
     case SET_CONFIG_SAVE:
        if (optarg != 0) goto noValueForOption;
@@ -481,6 +488,7 @@ int main(int argc, char *argv[])  {
 
    // if --save then store config on disk upfront
    if (session->configsave) configStoreFile (session);
+   if (session->forceexit)  exit (0);
 
     if (session->config->setuid) {
         int err;

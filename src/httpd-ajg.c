@@ -450,7 +450,10 @@ PUBLIC AJG_ERROR httpdStart (AJG_session *session) {
   // at 1st call initialise http api hashtable
   if (Request2Commands == NULL) initService (session);
 
-  if (verbose) printf ("AJG:notice Starting http port=%d rootdir=%s\n", session->config->httpdPort, session->config->rootdir);
+  if (verbose) {
+      printf ("AJG:notice Waiting port=%d rootdir=%s\n", session->config->httpdPort, session->config->rootdir);
+      printf ("AJG:notice Browser URL= http://localhost:%d\n", session->config->httpdPort);
+  }
 
   session->httpd = (void*) MHD_start_daemon (
 			MHD_USE_SELECT_INTERNALLY | MHD_USE_DEBUG, // use request and not threads
