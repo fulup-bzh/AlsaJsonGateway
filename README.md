@@ -8,6 +8,7 @@ Provides an HTTP REST interface to ALSA mixer for HTML5 UI support. The main obj
 
 * Author: Fulup Ar Foll http://breizhme.net/en/author
 * Demo:   http://breizhme.net/alsajson/mixers/ajg#/
+* Video   https://vimeo.com/user36538868/alsa-html5-mixer
 
 Alpha-01 release.
 
