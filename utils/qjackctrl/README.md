@@ -11,24 +11,24 @@ Operations to verify your configuration
   ./Install-QjackCtrl.sh
 
 1) Find the name of your sound card
-   play -l" [default card is hw:0]
+   play -l" [default card is hw:USB]
 
 2) Make sure no existing jackd server already lock your audio device
- - QjackCtrl.sh  alsadev=hw:0  action=kill    # hard kill on any jackd/jackdbus instance
- - QjackCtrl.sh  alsadev=hw:0  action=check   # sanity check of your environment
+ - QjackCtrl.sh  alsadev=hw:USB  action=kill    # hard kill on any jackd/jackdbus instance
+ - QjackCtrl.sh  alsadev=hw:USB  action=check   # sanity check of your environment
 
 3) Start your jacdbus server
- - QjackCtrl.sh  alsadev=hw:0  action=start   # start jackdbus instance 
- - QjackCtrl.sh  alsadev=hw:0  action=connect # connect midi devices and PulseAudio to Jackdbus
+ - QjackCtrl.sh  alsadev=hw:USB  action=start   # start jackdbus instance 
+ - QjackCtrl.sh  alsadev=hw:USB  action=connect # connect midi devices and PulseAudio to Jackdbus
 
 4) verify your server is effectively started
-- QjackCtrl.sh  alsadev=hw:0  action=status  # check jackdbus running status and locked audio resources
+- QjackCtrl.sh  alsadev=hw:USB  action=status  # check jackdbus running status and locked audio resources
 
 4) Stop your server
- - QjackCtrl.sh  alsadev=hw:0  action=stop    # stop jackdbus and midi bridge
+ - QjackCtrl.sh  alsadev=hw:USB  action=stop    # stop jackdbus and midi bridge
 
 5) Store your config when your happy with your preferences
- - QjackCtrl.sh  alsadev=hw:0  action=config  # store preferences in $HOME/.config/jack
+ - QjackCtrl.sh  alsadev=hw:USB  action=config  # store preferences in $HOME/.config/jack
 
 
 Configure script inside QjackCtrl GUI 

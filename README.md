@@ -37,7 +37,7 @@ Building [Linux Only]
        * OpenSuse:              sudo zypper install libjson-c-devel libmicrohttpd-devel alsa-lib-devel
        * Ubuntu/Mint/Debian:    sudo apt-get install json-c.dev libmicrohttpd.dev libasound2-dev
 
-    3) cd src; make install;   # Alpha version does not have installation process.
+    3) cd src; make; sudo make install;   # Alpha version does not have installation process.
 
 Starting alsa-json-gateway
 
