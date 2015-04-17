@@ -4,7 +4,7 @@
 # Author: Fulup Ar Foll
 # Copyright: what ever will make you happy
 
-EMAIL=fulup@breizhme.net
+EMAIL=fulup@xxxxxxx
 PORT=1234
 CHKTIME=600  # check AJG every xxx seconds
 DAEMON=ajg-daemon
