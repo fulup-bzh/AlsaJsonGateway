@@ -494,7 +494,7 @@ int main(int argc, char *argv[])  {
         int err;
 
         err = setuid(session->config->setuid);
-        if (err) error ("Fail to change program cardid error=%d", snd_strerror(err));
+        if (err) error ("Fail to change program cardid error=%d", strerror(err));
     }
 
     // let's not take the risk to run as ROOT
