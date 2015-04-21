@@ -6,9 +6,7 @@
 
 VERSION=0.1
 
-ifndef DESTDIR
-	DESTDIR:=/opt/ajg-daemon
-endif
+AJGDIR=/opt/ajg-daemon
 
 
 CCFLAGS=`pkg-config --cflags alsa libmicrohttpd json-c`
@@ -45,18 +43,18 @@ distrib: clean
 	cd .. ; tar -czvhf http-$(VERSION).tgz http-$(VERSION)
 
 built: all
-	mkdir -p $(DESTDIR)
-	@mkdir -p $(DESTDIR)/bin
-	@mkdir -p $(DESTDIR)/www
-	@install --strip $(BUILT)/ajg-daemon $(DESTDIR)/bin
+	mkdir -p  $(DESTDIR)$(AJGDIR)
+	@mkdir -p $(DESTDIR)$(AJGDIR)/bin
+	@mkdir -p $(DESTDIR)$(AJGDIR)/www
+	@install --strip $(BUILT)/ajg-daemon $(DESTDIR)$(AJGDIR)/bin
 
 	@echo ========================================================
 	@echo  AJG install OK [check with ajg-daemon --help]
 	@echo ========================================================
 
 install: built
-	@(cd /usr/local/bin; ln -fs $(DESTDIR)/bin/* .)
+	@(cd /usr/local/bin; ln -fs $(DESTDIR)$(AJGDIR)/bin/* .)
 
 update: $(DIST)/http
-	cp mixer-server $(DESTDIR)/bin
+	cp mixer-server $(DESTDIR)$(AJGDIR)/bin
 
