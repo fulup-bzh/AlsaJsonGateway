@@ -7,7 +7,7 @@ Provides an HTTP REST interface to ALSA mixer for HTML5 UI support. The main obj
 
 
 * Author: Fulup Ar Foll http://breizhme.net/en/author
-* Demo:   http://breizhme.net/alsajson/mixers/ajg#/
+* Demo:   http://breizhme.net/alsajson
 * Video   https://vimeo.com/user36538868/alsa-html5-mixer
 
 Alpha-01 release.
@@ -39,6 +39,9 @@ Building [Linux Only]
        * Ubuntu/Mint/Debian:    sudo apt-get install json-c.dev libmicrohttpd.dev libasound2-dev
 
     3) cd src; make; sudo make install;   # Alpha version does not have installation process.
+
+Kernel version dependencies.
+       * Focusrite/Scarlett 18i8 is supported out of the box by Linux Kernel 3.19++
 
 Starting alsa-json-gateway
 

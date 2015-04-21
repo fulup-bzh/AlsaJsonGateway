@@ -5,7 +5,10 @@
 # -----------------------------------------------------
 
 VERSION=0.1
-DESDIR=/opt/ajg-daemon
+ifndef DESTDIR
+	DESDIR=/opt/ajg-daemon
+endif
+
 
 CCFLAGS=`pkg-config --cflags alsa libmicrohttpd json-c`
 LDFLAGS=`pkg-config --libs alsa libmicrohttpd json-c`
