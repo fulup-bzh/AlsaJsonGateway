@@ -5,8 +5,9 @@
 # -----------------------------------------------------
 
 VERSION=0.1
+
 ifndef DESTDIR
-	DESDIR=/opt/ajg-daemon
+	DESTDIR:=/opt/ajg-daemon
 endif
 
 
