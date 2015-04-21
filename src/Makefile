@@ -43,15 +43,18 @@ distrib: clean
 	cd .. ; rm -f http-$(VERSION); ln -s http-2.x http-$(VERSION)
 	cd .. ; tar -czvhf http-$(VERSION).tgz http-$(VERSION)
 
-install: all
+built: all
 	mkdir -p $(DESTDIR)
 	@mkdir -p $(DESTDIR)/bin
 	@mkdir -p $(DESTDIR)/www
 	@install --strip $(BUILT)/ajg-daemon $(DESTDIR)/bin
-	@(cd /usr/local/bin; ln -fs $(DESTDIR)/bin/* .; exit 0)
+
 	@echo ========================================================
 	@echo  AJG install OK [check with ajg-daemon --help]
 	@echo ========================================================
+
+install: built
+	@(cd /usr/local/bin; ln -fs $(DESTDIR)/bin/* .)
 
 update: $(DIST)/http
 	cp mixer-server $(DESTDIR)/bin
