@@ -13,7 +13,7 @@ CCFLAGS=`pkg-config --cflags alsa libmicrohttpd json-c`
 LDFLAGS=`pkg-config --libs alsa libmicrohttpd json-c`
 
 CC= gcc -Werror -g -Wstrict-prototypes -Dhttp_VERSION=$(VERSION) -I../include $(CCFLAGS) -DAJQ_VERSION=$(VERSION)
-LD= gcc -g -lasound -lmicrohttpd -ljson-c
+LD= gcc -g -L/usr/lib64 $(LDFLAGS)
 DATE=`date +%d:%b:%y`
 BUILT=../built
 
