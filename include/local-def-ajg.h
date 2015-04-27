@@ -20,6 +20,7 @@
    $Id: $
 */
 
+#define _GNU_SOURCE
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -51,7 +52,8 @@ typedef int BOOL;
 
 // prebuild json error are constructed in config-ajg
 typedef enum  { AJG_FALSE, AJG_TRUE, AJG_FATAL, AJG_FAIL, AJG_WARNING, AJG_EMPTY, AJG_SUCCESS} AJG_ERROR;
-STATIC  char *ERROR_LABEL[]={"false", "true","fatal", "fail", "warning", "empty", "success"};
+extern char *ERROR_LABEL[];
+#define ERROR_LABEL_DEF {"false", "true","fatal", "fail", "warning", "empty", "success"}
 
 // Error code are requested through function to manage json usage count
 typedef struct {

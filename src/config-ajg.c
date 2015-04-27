@@ -26,8 +26,13 @@
 
 #include "local-def-ajg.h"
 #include <stdarg.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
 
 #define AJG_CONFIG_JTYPE "AJG_config"
+
+PUBLIC  char *ERROR_LABEL[]=ERROR_LABEL_DEF;
 
 PUBLIC int verbose;
 STATIC AJG_ErrorT  AJG_Error [AJG_SUCCESS+1];
@@ -119,10 +124,10 @@ PUBLIC AJG_ERROR configLoadFile (AJG_session * session, AJG_config *cliconfig) {
    // just upload json object and return without any further processing
    if((fd = open(session->config->configfile, O_RDONLY)) < 0) {
       if (verbose) fprintf (stderr, "AJG:warning: config at %s: %s\n", session->config->configfile, strerror(errno));
-      if (ajgConfig == NULL) return AJG_EMPTY;
+      return AJG_EMPTY;
    }
 
-   // openjson from FD is not public we need to reopen it !!!
+   // openjson from FD is not public API we need to reopen it !!!
    close(fd);
    ajgConfig = json_object_from_file (session->config->configfile);
 
@@ -170,8 +175,8 @@ PUBLIC AJG_ERROR configLoadFile (AJG_session * session, AJG_config *cliconfig) {
 }
 
 // Save the config on disk
-PUBLIC AJG_config* configStoreFile (AJG_session * session) {
-   json_object * ajgConfig, *value;
+PUBLIC void configStoreFile (AJG_session * session) {
+   json_object * ajgConfig;
    time_t rawtime;
    struct tm * timeinfo;
    int err;
@@ -221,6 +226,9 @@ PUBLIC AJG_session *configInit () {
   // initialize JSON constant messages and increase reference count to make them permanent
   verbosesav = verbose;
   verbose = 0;  // run initialisation in silent mode
+
+
+
   for (idx = 0; idx <= AJG_SUCCESS; idx++) {
      AJG_Error[idx].level = idx;
      AJG_Error[idx].label = ERROR_LABEL [idx];
@@ -248,11 +256,10 @@ PUBLIC json_object *jsonNewAjgType (void) {
 
 // build an ERROR message and return it as a valid json object
 PUBLIC  json_object *jsonNewMessage (AJG_ERROR level, char* format, ...) {
-   static count = 0;
+   static int count = 0;
    json_object * ajgResponse;
    va_list args;
    char message [512];
-   const char *serialized;
 
    // format message
    if (format != NULL) {
@@ -272,8 +279,6 @@ PUBLIC  json_object *jsonNewMessage (AJG_ERROR level, char* format, ...) {
         if (format != NULL) fprintf (stderr, message); else fprintf (stderr, "No Message");
         fprintf (stderr, "\n");
    }
-
-   serialized = json_object_to_json_string(ajgResponse);
 
    return (ajgResponse);
 }

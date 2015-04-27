@@ -38,8 +38,9 @@
 
 #include <microhttpd.h>
 #include <sys/stat.h>
-#include <unistd.h>
-#include <string.h>
+
+// proto missing from GCC
+char *strcasestr(const char *haystack, const char *needle);
 
 
 #include "local-def-ajg.h"
@@ -106,8 +107,8 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
                       , const char *upload_data, size_t *upload_data_size, void **con_cls) {
   const char  *query, *param;
   json_object *cmd;
-  int sndcard, done, ret;
-  json_object *jsonResponse, *sndcardJ, *errMessage;
+  int ret;
+  json_object *jsonResponse, *errMessage;
   struct MHD_Response  *response;
   AJG_request request;
   const char *serialized;
@@ -133,13 +134,11 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
 
     // POST datas may come in multiple chunk. Even when it never happen on AJG, we still have to handle the case
     if (strcasestr (encoding, JSON_CONTENT) == 0) {
-        json_object *response;
         errMessage = jsonNewMessage (AJG_FATAL, "Post Date wrong type encoding=%s != %s", encoding, JSON_CONTENT);
         goto ExitOnError;
     }
 
     if (contentlen > MAX_POST_SIZE) {
-        json_object *response;
         errMessage = jsonNewMessage (AJG_FATAL, "Post Date to big %d > %d", contentlen, MAX_POST_SIZE);
         goto ExitOnError;
     }
@@ -172,7 +171,6 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
     // We should only start to process DATA after Libmicrohttpd call or application handler with *upload_data_size==0
     // At this level we're may verify that we got everything and process DATA
     if (posthandle->len != contentlen) {
-        json_object *response;
         errMessage = jsonNewMessage (AJG_FATAL, "Post Data Incomplete UID=%d Len %d != %s", posthandle->uid, contentlen, posthandle->len);
         goto ExitOnError;
     }
@@ -193,11 +191,11 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
   // extract request query attribute from URL through ApiCmd
   query = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "request");
   if (query == NULL) {
-    errMessage = jsonNewMessage (AJG_FATAL, "Invalid AJG REST request &request=xxxxx& missing ", query, param);
+    errMessage = jsonNewMessage (AJG_FATAL, "Invalid AJG REST request &request=xxxxx& missing ");
     goto ExitOnError;
   }
   // extract command value from json object and process it
-  done=json_object_object_get_ex (Request2Commands, query, &cmd);
+  (void) json_object_object_get_ex (Request2Commands, query, &cmd);
 
   request.cardid = NULL; // no default card
   request.cardid = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "cardid");
@@ -275,7 +273,6 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
     }
 
   	case SESSION_LOAD: { // http://localhost:1234/jsonapi?request=session-load&cardid=hw:0&args=sessionname
-  	   json_object *jsonSession;
 
        request.args   = MHD_lookup_connection_value(connection, MHD_GET_ARGUMENT_KIND, "session");
        if (verbose)  fprintf (stderr, "%d: alsajson SESSION_LOAD cardid=%s session=%s\n", rqtcount ++, request.cardid, request.args);
@@ -336,7 +333,7 @@ STATIC void computeEtag (char *etag, int maxlen, struct stat *sbuf) {
 }
 
 // minimal httpd file server for static HTML,JS,CSS,etc...
-STATIC requestFile (struct MHD_Connection *connection, AJG_session *session, const char* url) {
+STATIC int requestFile (struct MHD_Connection *connection, AJG_session *session, const char* url) {
     int fd;
     int ret;
     struct stat sbuf;
@@ -424,7 +421,6 @@ STATIC int newRequest (void *cls,
   const char *version,
   const char *upload_data, size_t *upload_data_size, void **con_cls) {
 
-  static int aptr;
   AJG_session *session = cls;
   int ret;
 

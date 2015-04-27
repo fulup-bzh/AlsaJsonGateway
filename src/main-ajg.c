@@ -176,6 +176,7 @@ static int writePidFile (AJG_config *config, int pid) {
   // write pid in file and close
   fprintf (file, "%d\n", pid);
   fclose  (file);
+  return 0;
 }
 
 /*----------------------------------------------------------
@@ -479,7 +480,7 @@ int main(int argc, char *argv[])  {
   }
 
   // let's run this program with a low priority
-  nice (20);
+  status=nice (20);
 
 
   // ------------------ Finaly Process Commands -----------------------------
@@ -494,11 +495,11 @@ int main(int argc, char *argv[])  {
         int err;
 
         err = setuid(session->config->setuid);
-        if (err) error ("Fail to change program cardid error=%d", strerror(err));
+        if (err) fprintf (stderr, "Fail to change program cardid error=%s", strerror(err));
     }
 
     // let's not take the risk to run as ROOT
-    if (getuid == 0)  setuid(65534);  // run as nobody
+    if (getuid() == 0)  status=setuid(65534);  // run as nobody
 
     // check session dir and create if it does not exist
     if (sessionCheckdir (session) != AJG_SUCCESS) goto errSessiondir;
@@ -542,15 +543,15 @@ int main(int argc, char *argv[])  {
  	     if (verbose) printf ("AJG:info use '%s --restart --rootdir=%s # [--pidfile=%s] to restart daemon\n", programName,session->config->rootdir, session->config->pidfile);
 
          // redirect default I/O on console
-         close (2); dup(consoleFD);  // redirect stderr
-         close (1); dup(consoleFD);  // redirect stdout
+         close (2); status=dup(consoleFD);  // redirect stderr
+         close (1); status=dup(consoleFD);  // redirect stdout
          close (0);           // no need for stdin
          close (consoleFD);
 
     	 setsid();   // allow father process to fully exit
 	     sleep (2);  // allow main to leave and release port
 
-         fprintf (stderr, "----------------------------\n", getpid());
+         fprintf (stderr, "----------------------------\n");
          fprintf (stderr, "%s INF:main background pid=%d\n", configTime(), getpid());
          fflush  (stderr);
 
@@ -586,24 +587,8 @@ errorPidFile:
   fprintf (stderr,"\nERR:main Failled to write pid file [%s]\n\n", session->config->pidfile);
   exit (-1);
 
-errorSon:
-  fprintf (stderr,"\nERR:main Son Process Failled to get data from station\n\n");
-  exit (-1);
-
 errorFork:
   fprintf (stderr,"\nERR:main Failled to fork son process\n\n");
-  exit (-1);
-
-errorCommand:
-  fprintf (stderr,"\nERR:main Failled to send/get command \n\n");
-  exit (-1);
-
-invalidDisplay:
-  fprintf (stderr,"\nERR:main cannot open configured display\n\n");
-  exit (-1);
-
-invalidPort:
-  fprintf (stderr,"\nERR:main cannot open configured communication port\n\n");
   exit (-1);
 
 needValueForOption:
@@ -619,11 +604,6 @@ noValueForOption:
 notAnInteger:
   fprintf (stderr,"\nERR:main option [--%s] requirer an interger i.e. --%s=9\n\n"
           ,gnuOptions[optionIndex].name, gnuOptions[optionIndex].name);
-  exit (-1);
-
-errorSyntax:
-  fprintf (stderr,"\nERR:main no or invalid parameters parameters\n\n");
-  printHelp (programName);
   exit (-1);
 
 exitOnSignal:

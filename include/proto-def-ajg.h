@@ -52,5 +52,7 @@ PUBLIC json_object *jsonNewStatus (AJG_ERROR level);
 PUBLIC json_object *jsonNewAjgType (void);
 PUBLIC json_object *jsonNewMessage (AJG_ERROR level, char* format, ...);
 PUBLIC void jsonDumpObject (json_object * jObject);
+PUBLIC AJG_ERROR configLoadFile (AJG_session * session, AJG_config *cliconfig);
+PUBLIC void configStoreFile (AJG_session * session);
 
 
