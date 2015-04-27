@@ -181,8 +181,7 @@ STATIC int requestApi (struct MHD_Connection *connection, AJG_session *session, 
     posthandle->data[posthandle->len] = '\0';
     request.data = posthandle->data;
 
-    fprintf (stderr, "Post Data Buffer=%s UID=%d\n", request.data, posthandle->uid);
-
+    if (verbose == 0) fprintf (stderr, "Post Data Buffer=%s UID=%d\n", request.data, posthandle->uid);
 
   // process GET method and ignore any other
   } else if (strcmp (method, MHD_HTTP_METHOD_GET) != 0) {
