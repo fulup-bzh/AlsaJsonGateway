@@ -89,7 +89,7 @@ PUBLIC json_object * alsaProbeCard (AJG_session *session, AJG_request *request) 
       json_object *sndcard;
       snd_ctl_t   *handle;
       snd_ctl_card_info_t *cardinfo;
-      int err, index;
+      int err;
 
       // fakemode read response from session directory
       if (session->fakemod) {
@@ -417,7 +417,6 @@ STATIC json_object *  getControlAcl (snd_ctl_elem_info_t *info) {
 STATIC json_object * getAlsaSingleCtrl (snd_hctl_elem_t *elem, snd_ctl_elem_info_t *info,  AJG_request *request) {
 
 	int err;
-	unsigned int *tlv;
     json_object *jsonAlsaCtrl,*jsonClassCtrl;
 	snd_ctl_elem_id_t *elemid;
 	snd_ctl_elem_type_t elemtype;
@@ -457,7 +456,6 @@ STATIC json_object * getAlsaSingleCtrl (snd_hctl_elem_t *elem, snd_ctl_elem_info
 			for (idx = 0; idx < count; idx++) { // start from one in amixer.c !!!
 				switch (elemtype) {
 				case SND_CTL_ELEM_TYPE_BOOLEAN: {
-					char *onoff;
 					json_object_array_add (jsonValuesCtrl, json_object_new_boolean (snd_ctl_elem_value_get_boolean(control, idx)));
 					break;
 					}
@@ -536,7 +534,7 @@ STATIC json_object * getAlsaSingleCtrl (snd_hctl_elem_t *elem, snd_ctl_elem_info
 				unsigned int *tlv;
 				tlv = malloc(4096);
 				if ((err = snd_hctl_elem_tlv_read(elem, tlv, 4096)) < 0) {
-					error("Control %s element TLV read error\n", snd_strerror(err));
+					fprintf (stderr, "Control %s element TLV read error\n", snd_strerror(err));
 					free(tlv);
 				} else {
 					json_object_object_add (jsonAlsaCtrl,"tlv", decodeTlv (tlv, 4096));
@@ -547,17 +545,14 @@ STATIC json_object * getAlsaSingleCtrl (snd_hctl_elem_t *elem, snd_ctl_elem_info
 }
 
 PUBLIC json_object *alsaGetControl (AJG_session *session, AJG_request *request) {
-	int err;
-    int  count=0;
-    snd_ctl_elem_iface_t iface;
-
+	int err=0;
 	snd_hctl_t *handle;
 	snd_hctl_elem_t *elem;
 	snd_ctl_elem_info_t *info;
 	json_object *response, *sndctrls, *control;
 
   	if (session->fakemod) {
-  	   json_object *fakeresponse, *sndname;
+  	   json_object *fakeresponse;
   	   // make sure request->cardname is valid
   	   fakeresponse = alsaProbeCard (session,request); json_object_put (fakeresponse);
   	   // get fake response from disk
@@ -614,11 +609,10 @@ PUBLIC json_object *alsaGetControl (AJG_session *session, AJG_request *request) 
 PUBLIC json_object *alsaSetOneCtrl (AJG_session *session, AJG_request *request) {
     static json_object * okresponse =NULL;
 	int err;
-	snd_ctl_t *handle;
 	snd_ctl_elem_info_t *info;
     snd_ctl_elem_id_t *id;
 	snd_ctl_elem_value_t *control;
-    json_object *response, *sndcard;
+    json_object *response;
 
     // make standard response only once
     if (okresponse == NULL) okresponse=jsonNewMessage (AJG_SUCCESS, "done");
@@ -627,7 +621,7 @@ PUBLIC json_object *alsaSetOneCtrl (AJG_session *session, AJG_request *request) 
 
 	// probe soundcard to check it exist and get it name
 	request->cardhandle = (void*)TRUE; // request for not closing card handle
-	sndcard = alsaProbeCard (session, request);
+	(void) alsaProbeCard (session, request); // use to push cardname into request
 	if (request->cardname == NULL) {
 	   return  (jsonNewMessage (AJG_FATAL,"Sound card [%s] has no 'name' element", request->cardid));
 	}
@@ -685,7 +679,7 @@ ExitNow: // also used for normal exit
 // Low level push one control values to sound card.
 // Warning: at this level we expect session file to be save and we write integer values without verification.
 STATIC AJG_ERROR alsaSimpleSetCtrl(AJG_session *session, AJG_request *request, json_object *ctrlnumid, json_object *ctrlvalue) {
-    static json_object *okresponse=NULL, *element;
+    json_object *element;
 	int err, numid, value;
 	snd_ctl_elem_info_t *info;
     snd_ctl_elem_id_t *myid;
@@ -747,8 +741,7 @@ STATIC AJG_ERROR alsaSimpleSetCtrl(AJG_session *session, AJG_request *request, j
 
 // open sndcard to get its name and request existing session for this card
 PUBLIC json_object *alsaListSession (AJG_session *session, AJG_request *request) {
-   json_object *sndcard, *response, *element;
-   const char *cardname;
+   json_object *sndcard, *response;
 
    // open sndcard and get its name
    sndcard = alsaProbeCard (session, request);
@@ -765,8 +758,7 @@ PUBLIC json_object *alsaListSession (AJG_session *session, AJG_request *request)
 // assign multiple control to the same value
 PUBLIC json_object *alsaSetManyCtrl (AJG_session *session, AJG_request *request) {
    json_object *errorMsg, *sndcard, *numids,*ctrlnumid, *ctrlvalue;
-   const char *cardname;
-   unsigned int index, value;
+   unsigned int index;
 
    if (session->fakemod) return alsaFakeResponse (session, CTRL_SET_MANY);
 
@@ -835,8 +827,8 @@ OnErrorExit:
 
 // load a session for requested card
 PUBLIC json_object *alsaLoadSession (AJG_session *session, AJG_request *request) {
-   json_object *errorMsg, *jsonSession, *sndcard, *element, *cardinfo, *jsonResponse;
-   const char *sessionname,*cardname;
+   json_object *jsonSession=NULL, *errorMsg, *sndcard, *element, *cardinfo, *jsonResponse;
+   const char *sessionname;
    unsigned int index;
 
    // probe soundcard to check it exist and get it name

@@ -338,11 +338,11 @@ STATIC int requestFile (struct MHD_Connection *connection, AJG_session *session,
     int ret;
     struct stat sbuf;
     struct MHD_Response  *response;
-    char filepath [521];
+    char filepath [512];
 
     // build full path from rootdir + url
     strncpy (filepath, session->config->rootdir, sizeof (filepath));
-    strncat (filepath, url, sizeof (filepath));
+    strncat (filepath, url,511);
 
     // try to open file and get its size
     if ( (-1 == (fd = open (filepath, O_RDONLY))) || (0 != fstat (fd, &sbuf)) ) {

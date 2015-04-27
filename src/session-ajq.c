@@ -27,7 +27,8 @@
 #include <dirent.h>
 #include <string.h>
 #include <time.h>
-
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #define AJG_SESSION_JTYPE "AJG_session"
 #define AJG_SESSION_JLIST "AJG_sessions"
@@ -126,7 +127,6 @@ PUBLIC json_object *sessionList (AJG_session *session, AJG_request *request) {
          json_object *sessioninfo;
          char timestamp [64];
          char *filename;
-         struct tm lastupdate;
 
          // extract file name and last modification date
          filename = namelist[count]->d_name;
@@ -194,8 +194,8 @@ PUBLIC json_object *sessionFromDisk (AJG_session *session, AJG_request *request)
     // add cardname and file extension to session name
     strncpy (filename, request->cardname, sizeof(filename));
     strncat (filename, "/", sizeof(filename));
-    if (defsession) strncat (filename, AJG_CURRENT_SESSION, sizeof(filename));
-    else strncat (filename, request->args, sizeof(filename));
+    if (defsession) strncat (filename, AJG_CURRENT_SESSION, sizeof(filename)-1);
+    else strncat (filename, request->args, sizeof(filename)-1);
     strncat (filename, ".ajg", sizeof(filename));
 
     // just upload json object and return without any further processing
@@ -224,7 +224,6 @@ PUBLIC json_object *sessionFromDisk (AJG_session *session, AJG_request *request)
 
 // push Json session object to disk
 PUBLIC json_object * sessionToDisk (AJG_session *session, AJG_request *request, json_object *jsonSession) {
-   static json_object *AJG_JSON_DONE; // built once only
    char filename [256];
    time_t rawtime;
    struct tm * timeinfo;
@@ -244,9 +243,9 @@ PUBLIC json_object * sessionToDisk (AJG_session *session, AJG_request *request, 
    // add cardname and file extension to session name
    strncpy (filename, request->cardname, sizeof(filename));
    strncat (filename, "/", sizeof(filename));
-   if (defsession) strncat (filename, AJG_CURRENT_SESSION, sizeof(filename));
-   else strncat (filename, request->args, sizeof(filename));
-   strncat (filename, ".ajg", sizeof(filename));
+   if (defsession) strncat (filename, AJG_CURRENT_SESSION, sizeof(filename)-1);
+   else strncat (filename, request->args, sizeof(filename)-1);
+   strncat (filename, ".ajg", sizeof(filename)-1);
 
 
    json_object_object_add(jsonSession, "ajgtype", json_object_new_string (AJG_SESSION_JTYPE));
