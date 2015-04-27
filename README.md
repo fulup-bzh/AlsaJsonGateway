@@ -25,6 +25,9 @@ Supported features
 * Runs in foreground or background as a disconnected daemon.
 * Does not require administrator privilege.
 
+Binary packages [OpenSuse & CentOs]
+   http://software.opensuse.org/download.html?project=home%3Afulup&package=AlsaJsonGateway
+
 Building [Linux Only]
 
     1) download and expend alsa-json-gateway archive from github
