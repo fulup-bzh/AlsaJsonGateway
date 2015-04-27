@@ -12,8 +12,8 @@ AJGDIR=/opt/ajg-daemon
 CCFLAGS=`pkg-config --cflags alsa libmicrohttpd json-c`
 LDFLAGS=`pkg-config --libs alsa libmicrohttpd json-c`
 
-CC= gcc -Werror -g -Wstrict-prototypes -Dhttp_VERSION=$(VERSION) -I../include $(CCFLAGS) -DAJQ_VERSION=$(VERSION)
-LD= gcc -g
+CC= gcc $(RPM_OPT_FLAGS) -Werror -Wstrict-prototypes -Dhttp_VERSION=$(VERSION) -I../include $(CCFLAGS) -DAJQ_VERSION=$(VERSION)
+LD= gcc $(RPM_OPT_FLAGS)
 DATE=`date +%d:%b:%y`
 BUILT=../built
 
