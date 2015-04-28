@@ -42,7 +42,7 @@ distrib: clean
 	cd .. ; rm -f http-$(VERSION); ln -s http-2.x http-$(VERSION)
 	cd .. ; tar -czvhf http-$(VERSION).tgz http-$(VERSION)
 
-built: all
+build: all
 	mkdir -p  $(DESTDIR)$(AJGDIR)
 	@mkdir -p $(DESTDIR)$(AJGDIR)/bin
 	@mkdir -p $(DESTDIR)$(AJGDIR)/www
@@ -52,7 +52,7 @@ built: all
 	@echo  AJG install OK [check with ajg-daemon --help]
 	@echo ========================================================
 
-install: built
+install: build
 	@(cd /usr/local/bin; ln -fs $(DESTDIR)$(AJGDIR)/bin/* .)
 
 update: $(DIST)/http

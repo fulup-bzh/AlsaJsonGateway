@@ -1,0 +1,5 @@
+alsa-json-gateway (0.2-1) unstable; urgency=low
+
+  * Initial release (Closes: #nnnn)  <nnnn is the bug number of your ITP>
+
+ -- root <root@unknown>  Tue, 28 Apr 2015 19:14:57 +0200

@@ -25,7 +25,7 @@ Supported features
 * Runs in foreground or background as a disconnected daemon.
 * Does not require administrator privilege.
 
-Binary packages [OpenSuse & CentOs]
+Binary packages
    http://software.opensuse.org/download.html?project=home%3Afulup&package=AlsaJsonGateway
 
 Building [Linux Only]
@@ -39,7 +39,7 @@ Building [Linux Only]
 
        * Centos/Redhat/Fedora:  sudo yum install pkgconfig json-c-devel libmicrohttpd-devel alsa-lib-devel
        * OpenSuse:              sudo zypper install pkg-config libjson-c-devel libmicrohttpd-devel alsa-lib-devel
-       * Ubuntu/Mint/Debian:    sudo apt-get install json-c.dev libmicrohttpd.dev libasound2-dev
+       * Ubuntu/Mint/Debian:    sudo apt-get install libjson-c-dev libmicrohttpd-dev libasound2-dev
 
     3) cd src; make; sudo make install;   # Alpha version does not have installation process.
 

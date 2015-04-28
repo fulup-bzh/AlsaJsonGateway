@@ -1,0 +1,18 @@
+Source: alsa-json-gateway
+Section: sound
+Priority: optional
+Maintainer: Fulup Ar Foll <fulup@breizhme.net>
+Build-Depends: debhelper (>= 8.0.0), libjson-c-dev, libmicrohttpd-dev, libasound2-dev
+Standards-Version: 3.9.4
+Homepage: http://breizhme.net/alsajson
+Vcs-Git: git://github.com/fulup-bzh/AlsaJsonGateway.gi
+Vcs-Browser: https://github.com/fulup-bzh/AlsaJsonGateway
+
+Package: alsa-json-gateway
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: HTTP REST/JSON Gateway to ALSA mixer service for HTML5 UI
+ Provides an HTTP REST interface to ALSA mixer for HTML5 UI support.
+ The main objective of AJG is to decouple ALSA from UI, this especially
+ for Music Oriented Sound boards like Scarlett Focurite and others
+ .
