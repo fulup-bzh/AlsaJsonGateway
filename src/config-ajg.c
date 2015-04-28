@@ -277,7 +277,7 @@ PUBLIC  json_object *jsonNewMessage (AJG_ERROR level, char* format, ...) {
    if (verbose) {
         fprintf (stderr, "AJG:%-6s [%3d]: ", AJG_Error [level].label, count++);
         if (format != NULL) {
-            fprintf (stderr, message);
+            fprintf (stderr, "%s", message);
         } else {
             fprintf (stderr, "No Message");
         }
