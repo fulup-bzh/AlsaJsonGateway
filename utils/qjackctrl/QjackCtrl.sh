@@ -354,7 +354,10 @@ status)
       if test "$PIDS" != ""; then
         for PID in $PIDS; do
            NAME=`cat /proc/$PID/cmdline`
+           CARDID=`echo $CARD | sed 's/^.*pcm//' | sed 's/D.*$//'`
+           CARDNAME=`ls -l -q  /dev/snd/by-id/* | grep $CARDID | awk '{print $(NF-2)}' |  awk -F '/' '{print $(NF)}'`
            echo " ---> pid=$PID cmd=$NAME SOUNDCARD=$CARD"
+           echo "      cardid=$CARDID cardname=$CARDNAME"
         done
       fi
     done
