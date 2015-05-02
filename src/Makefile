@@ -4,15 +4,13 @@
 #  on Linux typing "make install" should be enough
 # -----------------------------------------------------
 
-VERSION=0.1
-
+VERSION=0.2.2
 AJGDIR=/opt/ajg-daemon
-
 
 CCFLAGS=`pkg-config --cflags alsa libmicrohttpd json-c`
 LDFLAGS=`pkg-config --libs alsa libmicrohttpd json-c`
 
-CC= gcc $(RPM_OPT_FLAGS) -Werror -Wstrict-prototypes -Dhttp_VERSION=$(VERSION) -I../include $(CCFLAGS) -DAJQ_VERSION=$(VERSION)
+CC= gcc $(RPM_OPT_FLAGS) -Werror -Wstrict-prototypes -I../include $(CCFLAGS) -DAJQ_VERSION=\"$(VERSION)\"
 LD= gcc $(RPM_OPT_FLAGS)
 DATE=`date +%d:%b:%y`
 BUILT=../built
@@ -37,10 +35,6 @@ testmem: all
 debug: all
 	echo --verbose --rootdir=$(HOME)/Documents/WorkSpace/AlsaJsonMixer/www --save
 	gdb  $(BUILT)/ajg-daemon
-
-distrib: clean
-	cd .. ; rm -f http-$(VERSION); ln -s http-2.x http-$(VERSION)
-	cd .. ; tar -czvhf http-$(VERSION).tgz http-$(VERSION)
 
 build: all
 	mkdir -p  $(DESTDIR)$(AJGDIR)

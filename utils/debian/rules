@@ -7,8 +7,5 @@
 %:
 	dh $@ 
 
-build:
-	$(MAKE) -C src $(MFLAGS) build 
-
 install:
-	$(MAKE) -C src $(MFLAGS) install
+	$(MAKE) -C src $(MFLAGS) build

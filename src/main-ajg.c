@@ -123,7 +123,7 @@ void signalFail (int signum) {
  static void printVersion (void) {
 
    fprintf (stderr,"\n----------------------------------------- \n");
-   fprintf (stderr,"|  AJG [Alsa Json Gateway] version=%3.2f |\n", AJQ_VERSION);
+   fprintf (stderr,"|  AJG [Alsa Json Gateway] version=%s |\n", AJQ_VERSION);
    fprintf (stderr,"----------------------------------------- \n");
    fprintf (stderr,"|  Copyright(C) 2015 Fulup Ar Foll [fulup -at- breizhme.net]\n");
    fprintf (stderr,"|  AJG comes with ABSOLUTELY NO WARRANTY.\n");

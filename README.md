@@ -26,7 +26,16 @@ Supported features
 * Does not require administrator privilege.
 
 Binary packages
-   http://software.opensuse.org/download.html?project=home%3Afulup&package=AlsaJsonGateway
+   OpenSuse, CentOs, Fedora
+     http://software.opensuse.org/download.html?project=home%3Afulup&package=AlsaJsonGateway
+
+   Ubuntu/Mint
+     sudo add-apt-repository ppa:fulup/alsa-json
+     sudo apt-get update
+     sudo apt-get install alsa-json-gateway
+
+   Note: AlsaJsonGateway package does not include Alsa/HTML5 mixer interface. In order to control
+   your Focurite/Scarlett sound board from your browser you also have to install AlsaJsonMixer.
 
 Building [Linux Only]
 

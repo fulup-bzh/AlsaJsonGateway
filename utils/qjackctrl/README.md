@@ -3,6 +3,9 @@ README: QjaclCtrl.sh
 QjackCtrl.sh somehow automates jackd/pulseaudio/ardour cohabitation
 It can be started manually or directly from QjacjCtrl GUI from setup/optional/scripts
 
+Vidéo d'explication: in French
+ http://www.dailymotion.com/video/x1x3zb3_linux-pulse-jack-scarlette-18i8_tech
+
 
 Operations to verify your configuration
 -----------------------------------------

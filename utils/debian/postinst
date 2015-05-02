@@ -1,0 +1,7 @@
+#!/bin/sh
+
+ln -fs /opt/ajg-daemon/bin/ajg-daemon /usr/local/bin/ajg-daemon
+echo ========================================================
+echo  AJG install OK [check with ajg-daemon --help]
+echo ========================================================
+

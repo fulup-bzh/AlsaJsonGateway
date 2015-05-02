@@ -2,7 +2,7 @@ Source: alsa-json-gateway
 Section: sound
 Priority: optional
 Maintainer: Fulup Ar Foll <fulup@breizhme.net>
-Build-Depends: debhelper (>= 8.0.0), libjson-c-dev, libmicrohttpd-dev, libasound2-dev
+Build-Depends: debhelper (>= 8.0.0), pkg-config, libjson-c-dev, libmicrohttpd-dev, libasound2-dev
 Standards-Version: 3.9.4
 Homepage: http://breizhme.net/alsajson
 Vcs-Git: git://github.com/fulup-bzh/AlsaJsonGateway.gi
