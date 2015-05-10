@@ -123,7 +123,7 @@ PUBLIC AJG_ERROR configLoadFile (AJG_session * session, AJG_config *cliconfig) {
 
    // just upload json object and return without any further processing
    if((fd = open(session->config->configfile, O_RDONLY)) < 0) {
-      if (verbose) fprintf (stderr, "AJG:warning: config at %s: %s\n", session->config->configfile, strerror(errno));
+      if (verbose) fprintf (stderr, "AJG:notice: config at %s: %s\n", session->config->configfile, strerror(errno));
       return AJG_EMPTY;
    }
 

@@ -65,6 +65,8 @@ Starting alsa-json-gateway
       ajg-daemon --config=AJW_DIR/AJG-config.json  --kill                      # kill current AJG daemon
       ajg-daemon --config=AJW_DIR/AJG-config.json  --fakemod                   # simulate sndcard ignoring set/get control
 
+      ajg-daemon --rootdir=/opt/ajg-daemon/www --sessiondir=$HOME/.ajg --daemon # default background mode
+
 REST API
      - GENERIC Arguments
            cardid=hw:xxx  xxx=card number [0-31]
