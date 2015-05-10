@@ -29,7 +29,7 @@ Binary packages
 
    OpenSuse, CentOs, Fedora
 
-       http://software.opensuse.org/download.html?project=home%3Afulup&package=AlsaJsonGateway
+   http://software.opensuse.org/download.html?project=home%3Afulup&package=AlsaJsonGateway
 
    Ubuntu/Mint
 
