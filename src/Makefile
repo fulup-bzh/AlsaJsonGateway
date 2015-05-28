@@ -14,6 +14,7 @@ CC= gcc $(RPM_OPT_FLAGS) -Werror -Wstrict-prototypes -I../include $(CCFLAGS) -DA
 LD= gcc $(RPM_OPT_FLAGS)
 DATE=`date +%d:%b:%y`
 BUILT=../built
+SAMPL=../samples
 
 
 OBJECTS= $(BUILT)/main-ajg.o $(BUILT)/config-ajg.o $(BUILT)/httpd-ajg.o $(BUILT)/alsa-ajg.o  $(BUILT)/session-ajq.o
@@ -40,7 +41,9 @@ build: all
 	mkdir -p  $(DESTDIR)$(AJGDIR)
 	@mkdir -p $(DESTDIR)$(AJGDIR)/bin
 	@mkdir -p $(DESTDIR)$(AJGDIR)/www
+	@mkdir -p $(DESTDIR)$(AJGDIR)/www/fakemod
 	@install --strip $(BUILT)/ajg-daemon $(DESTDIR)$(AJGDIR)/bin
+	@cp -r $(SAMPL)/* $(DESTDIR)$(AJGDIR)/www/fakemod
 
 	@echo ========================================================
 	@echo  AJG install OK [check with ajg-daemon --help]

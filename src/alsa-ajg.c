@@ -35,7 +35,7 @@
 #define AJG_SNDLIST_JTYPE "AJG_sndlist"
 
 // in fakemod response comes from disk
-STATIC json_object *alsaFakeResponse (AJG_session *session, AJG_REST_CMD fakecmd) {
+STATIC json_object *alsaFakeResponse (AJG_session *session, AJG_request *request, AJG_REST_CMD fakecmd) {
     json_object *fakeResponse;
     char filename[256];
 
@@ -56,7 +56,8 @@ STATIC json_object *alsaFakeResponse (AJG_session *session, AJG_REST_CMD fakecmd
            strncat (filename, "CARD_GET_ONE", sizeof(filename));
            break;
      case  CTRL_GET_ALL:
-           strncat (filename, "CTRL_GET_ALL", sizeof(filename));
+           strncat (filename, "CTRL_GET_ALL-", sizeof(filename));
+           strncat (filename, request->cardid, sizeof(filename));
            break;
      case  CTRL_GET_ONE:
            strncat (filename, "CTRL_GET_ONE", sizeof(filename));
@@ -94,7 +95,7 @@ PUBLIC json_object * alsaProbeCard (AJG_session *session, AJG_request *request) 
       // fakemode read response from session directory
       if (session->fakemod) {
         json_object *sndname;
-        sndcard = alsaFakeResponse (session, CARD_GET_NAME);
+        sndcard = alsaFakeResponse (session, request, CARD_GET_NAME);
         json_object_object_get_ex (sndcard, "name", &sndname);
         request->cardname = strdup (json_object_get_string (sndname));
       	return (sndcard);
@@ -144,8 +145,8 @@ PUBLIC json_object * alsaFindCard (AJG_session *session, AJG_request *request) {
 
     if (session->fakemod) {
        json_object *fakeresponse;
-       if (request->cardid == NULL) fakeresponse = alsaFakeResponse (session, CARD_GET_ALL);
-       else  fakeresponse = alsaFakeResponse (session, CARD_GET_ONE);
+       if (request->cardid == NULL) fakeresponse = alsaFakeResponse (session, request, CARD_GET_ALL);
+       else  fakeresponse = alsaFakeResponse (session, request, CARD_GET_ONE);
        return (fakeresponse);
     }
 
@@ -556,8 +557,8 @@ PUBLIC json_object *alsaGetControl (AJG_session *session, AJG_request *request) 
   	   // make sure request->cardname is valid
   	   fakeresponse = alsaProbeCard (session,request); json_object_put (fakeresponse);
   	   // get fake response from disk
-  	   if (request->numid < 0) fakeresponse = alsaFakeResponse (session, CTRL_GET_ALL);
-  	   else fakeresponse = alsaFakeResponse (session, CTRL_GET_ONE);
+  	   if (request->numid < 0) fakeresponse = alsaFakeResponse (session, request, CTRL_GET_ALL);
+  	   else fakeresponse = alsaFakeResponse (session, request, CTRL_GET_ONE);
   	   return fakeresponse;
   	}
 
@@ -617,7 +618,7 @@ PUBLIC json_object *alsaSetOneCtrl (AJG_session *session, AJG_request *request) 
     // make standard response only once
     if (okresponse == NULL) okresponse=jsonNewMessage (AJG_SUCCESS, "done");
 
-    if (session->fakemod) return alsaFakeResponse (session, CTRL_SET_ONE);
+    if (session->fakemod) return alsaFakeResponse (session, request, CTRL_SET_ONE);
 
 	// probe soundcard to check it exist and get it name
 	request->cardhandle = (void*)TRUE; // request for not closing card handle
@@ -760,7 +761,7 @@ PUBLIC json_object *alsaSetManyCtrl (AJG_session *session, AJG_request *request)
    json_object *errorMsg, *sndcard, *numids,*ctrlnumid, *ctrlvalue;
    unsigned int index;
 
-   if (session->fakemod) return alsaFakeResponse (session, CTRL_SET_MANY);
+   if (session->fakemod) return alsaFakeResponse (session, request, CTRL_SET_MANY);
 
    // probe soundcard to check it exist and get it name
    request->cardhandle = (void*)TRUE; // request for not closing card handle
