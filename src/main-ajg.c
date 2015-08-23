@@ -249,18 +249,20 @@ static void listenLoop (AJG_session *session) {
  +--------------------------------------------------------- */
 static AJG_ERROR probeAlsa (AJG_session *session) {
       AJG_request request;
-      json_object *sndcards, *sndlist, *sndcard, *slot, *element;
+      json_object *sndcards, *sndlist, *sndcard, *slot, *element, *data;
       int index, idx, length;
       char const *cardid, *name, *info;
 
       // create a dummy HTTP request and probe sound cards
       memset (&request,0,sizeof (request));
       sndlist =  alsaFindCard(session, &request);
+      // jsonDumpObject (sndlist);
 
       // search for sound card descriptor & get sndcard list
       if (! json_object_object_get_ex (sndlist, "ajgtype", &element))   return AJG_FAIL;
-      if (!strcmp (json_object_get_string (element), "AJG_sndcards"))   return AJG_FAIL;
-      if (! json_object_object_get_ex (sndlist, "sndcards", &sndcards)) return AJG_FAIL;
+      fprintf (stderr,"type=[%s]\n", json_object_get_string (element));
+      if (strcmp (json_object_get_string (element), "AJG_sndlist"))     return AJG_FAIL;
+      if (! json_object_object_get_ex (sndlist, "data", &sndcards))     return AJG_FAIL;
 
       length = json_object_array_length (sndcards);
       fprintf (stderr,"\n---- Check Alsa [%d] cards ------\n", length);
