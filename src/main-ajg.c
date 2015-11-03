@@ -378,7 +378,7 @@ int main(int argc, char *argv[])  {
        break;
 
     case SET_cardid:
-       if (optarg != 0) goto noValueForOption;
+       if (optarg == 0) goto needValueForOption;
        if (!sscanf (optarg, "%d", &cliconfig.setuid)) goto notAnInteger;
        break;
 
