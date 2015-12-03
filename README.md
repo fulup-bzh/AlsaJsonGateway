@@ -53,7 +53,7 @@ Building [Linux Only]
        * OpenSuse:              sudo zypper install pkg-config libjson-c-devel libmicrohttpd-devel alsa-lib-devel
        * Ubuntu/Mint/Debian:    sudo apt-get install libjson-c-dev libmicrohttpd-dev libasound2-dev
 
-    3) cd src; make; sudo make install;   # Alpha version does not have installation process.
+    3) autoreconf --install; ./configure; make; sudo make install;   # Alpha version does not have installation process.
 
 Kernel version dependencies.
        * Focusrite/Scarlett 18i8 is supported out of the box by Linux Kernel 3.19++
