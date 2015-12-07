@@ -49,9 +49,9 @@ Building [Linux Only]
        b: libmicrohttpd-dev
        c: json-c-dev
 
-       * Centos/Redhat/Fedora:  sudo yum install pkgconfig json-c-devel libmicrohttpd-devel alsa-lib-devel
-       * OpenSuse:              sudo zypper install pkg-config libjson-c-devel libmicrohttpd-devel alsa-lib-devel
-       * Ubuntu/Mint/Debian:    sudo apt-get install libjson-c-dev libmicrohttpd-dev libasound2-dev
+       * Centos/Redhat/Fedora:  sudo yum install libtool pkgconfig json-c-devel libmicrohttpd-devel alsa-lib-devel
+       * OpenSuse:              sudo zypper install libtool pkg-config libjson-c-devel libmicrohttpd-devel alsa-lib-devel
+       * Ubuntu/Mint/Debian:    sudo apt-get install libtool pkg-config libjson-c-dev libmicrohttpd-dev libasound2-dev
 
     3) autoreconf --install; ./configure; make; sudo make install;   # Alpha version does not have installation process.
 
