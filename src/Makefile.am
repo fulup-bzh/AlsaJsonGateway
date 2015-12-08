@@ -3,7 +3,7 @@ VERSION=0.2.2
 all-local :
 
 AM_CPPFLAGS = $(GCC_CPPFLAGS) -I$(top_srcdir)/include -DAJQ_VERSION=\"$(VERSION)\"
-AM_CFLAGS = $(GCC_CFLAGS) -Wstrict-prototypes
+AM_CFLAGS = $(GCC_CFLAGS) -Werror -Wstrict-prototypes
 
 CLEANFILES =
 
