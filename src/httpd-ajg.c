@@ -1,7 +1,7 @@
 /*
    alsajson-gw -- provide a REST/HTTP interface to ALSA-Mixer
 
-   Copyright (C) 2015, Fulup Ar Foll
+   Copyright (C) 2018, Fulup Ar Foll, Google LLC
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -366,8 +366,8 @@ STATIC int requestFile (struct MHD_Connection *connection, AJG_session *session,
 
 
 
-            if (url [strlen (url) -1] != '/') strncat (filepath, "/", sizeof (filepath));
-            strncat (filepath, "index.html", sizeof (filepath));
+            if (url [strlen (url) -1] != '/') strncat (filepath, "/", sizeof (filepath) - 1);
+            strncat (filepath, "index.html", sizeof (filepath) - 1);
             close (fd);
             response = MHD_create_response_from_buffer (0,"", MHD_RESPMEM_PERSISTENT);
             MHD_add_response_header (response,MHD_HTTP_HEADER_LOCATION, filepath);
