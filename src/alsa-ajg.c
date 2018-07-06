@@ -1,7 +1,7 @@
 /*
    alsajson-gw -- provide a REST/HTTP interface to ALSA-Mixer
 
-   Copyright (C) 2015, Fulup Ar Foll
+   Copyright (C) 2018, Fulup Ar Foll, Google LLC
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -40,33 +40,33 @@ STATIC json_object *alsaFakeResponse (AJG_session *session, AJG_request *request
     char filename[256];
 
     strncpy (filename, session->config->rootdir, sizeof(filename));
-    strncat (filename, "/fakemod/", sizeof(filename));
+    strncat (filename, "/fakemod/", sizeof(filename) - 1);
 
     switch (fakecmd) {
      case  CARD_GET_NAME:
-           strncat (filename, "CARD_GET_NAME", sizeof(filename));
+           strncat (filename, "CARD_GET_NAME", sizeof(filename) - 1);
            break;
      case  GATEWAY_PING:
-           strncat (filename, "GATEWAY_PING", sizeof(filename));
+           strncat (filename, "GATEWAY_PING", sizeof(filename) - 1);
            break;
      case  CARD_GET_ALL:
-           strncat (filename, "CARD_GET_ALL", sizeof(filename));
+           strncat (filename, "CARD_GET_ALL", sizeof(filename) - 1);
            break;
      case  CARD_GET_ONE:
-           strncat (filename, "CARD_GET_ONE", sizeof(filename));
+           strncat (filename, "CARD_GET_ONE", sizeof(filename) - 1);
            break;
      case  CTRL_GET_ALL:
-           strncat (filename, "CTRL_GET_ALL-", sizeof(filename));
-           strncat (filename, request->cardid, sizeof(filename));
+           strncat (filename, "CTRL_GET_ALL-", sizeof(filename) - 1);
+           strncat (filename, request->cardid, sizeof(filename) - 1);
            break;
      case  CTRL_GET_ONE:
-           strncat (filename, "CTRL_GET_ONE", sizeof(filename));
+           strncat (filename, "CTRL_GET_ONE", sizeof(filename) - 1);
            break;
      case  CTRL_SET_ONE:
-           strncat (filename, "CTRL_SET_ONE", sizeof(filename));
+           strncat (filename, "CTRL_SET_ONE", sizeof(filename) - 1);
            break;
      case  CTRL_SET_MANY:
-           strncat (filename, "CTRL_SET_MANY", sizeof(filename));
+           strncat (filename, "CTRL_SET_MANY", sizeof(filename) - 1);
            break;
 
      default:
@@ -74,7 +74,7 @@ STATIC json_object *alsaFakeResponse (AJG_session *session, AJG_request *request
     }
 
     // just upload json object and return without any further processing
-    strncat (filename, ".ajg", sizeof(filename));
+    strncat (filename, ".ajg", sizeof(filename) - 1);
     fakeResponse = json_object_from_file (filename);
 
     // if not fakemessage for this request build an error message

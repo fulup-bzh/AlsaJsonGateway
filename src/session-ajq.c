@@ -1,7 +1,7 @@
 /*
    alsajson-gw -- provide a REST/HTTP interface to ALSA-Mixer
 
-   Copyright (C) 2015, Fulup Ar Foll
+   Copyright (C) 2018, Fulup Ar Foll, Google LLC
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -162,12 +162,12 @@ STATIC void makeSessionLink (const char *cardname, const char *sessionname) {
    int err;
    // create a link to keep track of last uploaded sessionname for this card
    strncpy (filename, sessionname, sizeof(filename));
-   strncat (filename, ".ajg", sizeof(filename));
+   strncat (filename, ".ajg", sizeof(filename) - 1);
 
    strncpy (linkname, cardname, sizeof(linkname));
-   strncat (linkname, "/", sizeof(filename));
-   strncat (linkname, AJG_CURRENT_SESSION, sizeof(linkname));
-   strncat (linkname, ".ajg", sizeof(filename));
+   strncat (linkname, "/", sizeof(filename) - 1);
+   strncat (linkname, AJG_CURRENT_SESSION, sizeof(linkname) - 1);
+   strncat (linkname, ".ajg", sizeof(filename) - 1);
    unlink (linkname); // remove previous link if any
    err = symlink (filename, linkname);
    if (err < 0) fprintf (stderr, "Fail to create link %s->%s error=%s\n", linkname, filename, strerror(errno));
@@ -193,10 +193,10 @@ PUBLIC json_object *sessionFromDisk (AJG_session *session, AJG_request *request)
 
     // add cardname and file extension to session name
     strncpy (filename, request->cardname, sizeof(filename));
-    strncat (filename, "/", sizeof(filename));
+    strncat (filename, "/", sizeof(filename) - 1);
     if (defsession) strncat (filename, AJG_CURRENT_SESSION, sizeof(filename)-1);
     else strncat (filename, request->args, sizeof(filename)-1);
-    strncat (filename, ".ajg", sizeof(filename));
+    strncat (filename, ".ajg", sizeof(filename) - 1);
 
     // just upload json object and return without any further processing
     jsonSession = json_object_from_file (filename);
@@ -242,7 +242,7 @@ PUBLIC json_object * sessionToDisk (AJG_session *session, AJG_request *request, 
 
    // add cardname and file extension to session name
    strncpy (filename, request->cardname, sizeof(filename));
-   strncat (filename, "/", sizeof(filename));
+   strncat (filename, "/", sizeof(filename) - 1);
    if (defsession) strncat (filename, AJG_CURRENT_SESSION, sizeof(filename)-1);
    else strncat (filename, request->args, sizeof(filename)-1);
    strncat (filename, ".ajg", sizeof(filename)-1);
