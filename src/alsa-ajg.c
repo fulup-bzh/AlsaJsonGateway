@@ -933,6 +933,7 @@ PUBLIC json_object *alsaStoreSession (AJG_session *session, AJG_request *request
        return jsonNewMessage (AJG_FATAL,"Sound card [hw:%d] no [name] element", request->cardid);
     }
     response = sessionToDisk (session, request, controls);
-    json_object_put   (controls);    // decrease reference count to free the json object
+    // this triggers a segfault
+    //json_object_put   (controls);    // decrease reference count to free the json object
     return response;
 }
