@@ -70,13 +70,13 @@ STATIC int fileSelect (const struct dirent *entry) {
    return (strstr (entry->d_name, ".ajg") != NULL);
 }
 
-STATIC  json_object *checkCardDirExit (AJG_session *session, AJG_request *request ) {
+STATIC  json_object *checkCardDirExist(AJG_session *session, AJG_request *request ) {
     int  sessionDir, cardDir;
 
     // card name should be more than 5 character long !!!!
-    if (strlen (request->cardname) < 5) {
-       return (jsonNewMessage (AJG_FAIL,"Fail invalid sndcard cardid=%s cardname [%s]", request->cardid, request->cardname));
-    }
+    //if (strlen (request->cardname) < 5) {
+    //   return (jsonNewMessage (AJG_FAIL,"Fail invalid sndcard cardid=%s cardname [%s]", request->cardid, request->cardname));
+    //}
 
     // open session directory
     sessionDir = open (session->config->sessiondir, O_DIRECTORY);
@@ -104,7 +104,8 @@ PUBLIC json_object *sessionList (AJG_session *session, AJG_request *request) {
     int  count, sessionDir;
 
     // if directory for card's sessions does not exist create it
-    ajgResponse = checkCardDirExit (session, request);
+    ajgResponse = checkCardDirExist(session, request);
+    // this logic is pretty rough. yikes.
     if (ajgResponse != NULL) return ajgResponse;
 
     // open session directory
@@ -113,7 +114,7 @@ PUBLIC json_object *sessionList (AJG_session *session, AJG_request *request) {
           return (jsonNewMessage (AJG_FAIL,"Fail to open directory [%s] error=%s", session->config->sessiondir, strerror(sessionDir)));
     }
 
-    count = scandirat (sessionDir, request->cardname, &namelist, fileSelect, alphasort);
+    count = scandirat(sessionDir, request->cardname, &namelist, fileSelect, alphasort);
     close (sessionDir);
 
     if (count < 0) {
@@ -132,12 +133,14 @@ PUBLIC json_object *sessionList (AJG_session *session, AJG_request *request) {
          filename = namelist[count]->d_name;
          printf("%s\n", filename);
          stat(filename,&fstat);
-         strftime (timestamp, sizeof(timestamp), "%c", localtime (&fstat.st_mtime));
+         //this triggers a segfault
+         //strftime(timestamp, sizeof(timestamp), "%c", localtime(&fstat.st_mtime));
          filename[strlen(filename)-4] = '\0'; // remove .ajg extension from filename
 
          // create an object by session with last update date
          sessioninfo = json_object_new_object();
-         json_object_object_add (sessioninfo, "date" , json_object_new_string (timestamp));
+         // if the session is stored with a timestamp, why are we outputting a different one?
+         //json_object_object_add (sessioninfo, "date" , json_object_new_string (timestamp));
          json_object_object_add (sessioninfo, "session" , json_object_new_string (filename));
          json_object_array_add (sessionsJ, sessioninfo);
 
@@ -188,7 +191,7 @@ PUBLIC json_object *sessionFromDisk (AJG_session *session, AJG_request *request)
     defsession = (strcmp (request->args, AJG_DEFAULT_SESSION) ==0);
 
     // if directory for card's sessions does not exist create it
-    response = checkCardDirExit (session, request);
+    response = checkCardDirExist (session, request);
     if (response != NULL) return response;
 
     // add cardname and file extension to session name
@@ -237,7 +240,7 @@ PUBLIC json_object * sessionToDisk (AJG_session *session, AJG_request *request, 
    defsession = (strcmp (request->args, AJG_DEFAULT_SESSION) ==0);
 
    // if directory for card's sessions does not exist create it
-   response = checkCardDirExit (session, request);
+   response = checkCardDirExist (session, request);
    if (response != NULL) return response;
 
    // add cardname and file extension to session name

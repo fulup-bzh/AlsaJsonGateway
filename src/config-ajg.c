@@ -48,10 +48,10 @@ PUBLIC char * configTime (void) {
   struct tm *rt;
 
   /* Get actual Date and Time */
-  time (&tt);
-  rt = localtime (&tt);
+  time(&tt);
+  rt = localtime(&tt);
 
-  strftime (reqTime, sizeof (reqTime), "(%d-%b %H:%M)",rt);
+  strftime(reqTime, sizeof (reqTime), "(%d-%b %H:%M)",rt);
 
   // return pointer on static data
   return (reqTime);
